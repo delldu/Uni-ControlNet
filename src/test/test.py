@@ -50,7 +50,7 @@ model = create_model('./configs/uni_v15.yaml').cpu()
 # model.local_adapter -- models.local_adapter.LocalAdapter
 # model.global_adapter -- models.global_adapter.GlobalAdapter
 
-pdb.set_trace()
+# pdb.set_trace()
 
 
 model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
@@ -155,7 +155,7 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
 
         model.control_scales = [strength] * 13
         samples, _ = ddim_sampler.sample(ddim_steps, num_samples,
-                                                     shape, cond, verbose=False, eta=eta,
+                                                     shape, cond, eta=eta,
                                                      unconditional_guidance_scale=scale,
                                                      unconditional_conditioning=un_cond, global_strength=global_strength)
 
