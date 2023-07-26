@@ -27,17 +27,17 @@ from models.ddim_hacked import DDIMSampler
 
 
 apply_canny = CannyDetector()
-apply_mlsd = MLSDdetector()
-apply_hed = HEDdetector()
-apply_sketch = SketchDetector()
-apply_openpose = OpenposeDetector()
-apply_midas = MidasDetector()
-apply_seg = UniformerDetector()
-apply_content = ContentDetector()
+# apply_mlsd = MLSDdetector()
+# apply_hed = HEDdetector()
+# apply_sketch = SketchDetector()
+# apply_openpose = OpenposeDetector()
+# apply_midas = MidasDetector()
+# apply_seg = UniformerDetector()
+# apply_content = ContentDetector()
 
 
 model = create_model('./configs/uni_v15.yaml').cpu()
-model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cuda'))
+model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
@@ -187,7 +187,7 @@ with block:
                 distance_threshold = gr.Slider(label="Hough Distance Threshold (MLSD)", minimum=0.01, maximum=20.0, value=0.1, step=0.01)
                 alpha = gr.Slider(label="Alpha", minimum=0.1, maximum=20.0, value=6.2, step=0.01)
                 
-                ddim_steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=50, step=1)
+                ddim_steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=20, step=1)
                 scale = gr.Slider(label="Guidance Scale", minimum=0.1, maximum=30.0, value=7.5, step=0.1)
                 seed = gr.Slider(label="Seed", minimum=-1, maximum=2147483647,  value=42, step=1)
                 eta = gr.Number(label="Eta (DDIM)", value=0.0)

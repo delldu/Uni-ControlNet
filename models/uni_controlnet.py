@@ -7,12 +7,35 @@ from torchvision.utils import make_grid
 from ldm.models.diffusion.ddpm import LatentDiffusion
 from ldm.util import log_txt_as_img, instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
-
+import pdb
 
 class UniControlNet(LatentDiffusion):
+    '''uni_v15.yaml
 
+      target: models.uni_controlnet.UniControlNet
+      params:
+        linear_start: 0.00085
+        linear_end: 0.0120
+        num_timesteps_cond: 1
+        log_every_t: 200
+        timesteps: 1000
+        first_stage_key: "jpg"
+        cond_stage_key: "txt"
+        image_size: 64
+        channels: 4
+        cond_stage_trainable: false
+        conditioning_key: crossattn
+        monitor: val/loss_simple_ema
+        scale_factor: 0.18215
+        use_ema: False
+        mode: uni
+    '''
     def __init__(self, mode, local_control_config=None, global_control_config=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # pp mode -- 'uni'
+        # local_control_config -- {'target': 'models.local_adapter.LocalAdapter' ... }
+        # global_control_config -- {'target': 'models.global_adapter.GlobalAdapter' ... }
+
         assert mode in ['local', 'global', 'uni']
         self.mode = mode
         if self.mode in ['local', 'uni']:

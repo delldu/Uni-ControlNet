@@ -165,6 +165,25 @@ class FeatureExtractor(nn.Module):
 
 
 class LocalAdapter(nn.Module):
+    '''uni_v15.yaml
+    
+      target: models.local_adapter.LocalAdapter
+      params:
+        in_channels: 4
+        model_channels: 320
+        local_channels: 21
+        inject_channels: [192, 256, 384, 512]
+        inject_layers: [1, 4, 7, 10]
+        num_res_blocks: 2
+        attention_resolutions: [4, 2, 1]
+        channel_mult: [1, 2, 4, 4]
+        use_checkpoint: True
+        num_heads: 8
+        use_spatial_transformer: True
+        transformer_depth: 1
+        context_dim: 768
+        legacy: False
+    '''
     def __init__(
             self,
             in_channels,
