@@ -184,17 +184,6 @@ class ResBlock(TimestepBlock):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    # def forward(self, x, emb):
-    #     """
-    #     Apply the block to a Tensor, conditioned on a timestep embedding.
-    #     :param x: an [N x C x ...] Tensor of features.
-    #     :param emb: an [N x emb_channels] Tensor of timestep embeddings.
-    #     :return: an [N x C x ...] Tensor of outputs.
-    #     """
-    #     return checkpoint(
-    #         self._forward, (x, emb), self.parameters(), self.use_checkpoint
-    #     )
-
 
     def forward(self, x, emb):
         h = self.in_layers(x)
@@ -413,30 +402,3 @@ class UNetModel(nn.Module):
             nn.SiLU(),
             zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
         )
-
-    def forward(self, x, timesteps=None, context=None, y=None,**kwargs):
-        """
-        Apply the model to an input batch.
-        :param x: an [N x C x ...] Tensor of inputs.
-        :param timesteps: a 1-D batch of timesteps.
-        :param context: conditioning plugged in via crossattn
-        :param y: an [N] Tensor of labels, if class-conditional.
-        :return: an [N x C x ...] Tensor of outputs.
-        """
-        pdb.set_trace()
-        
-        hs = []
-        t_emb = timestep_embedding(timesteps, self.model_channels)
-        emb = self.time_embed(t_emb)
-
-        h = x
-        for module in self.input_blocks:
-            h = module(h, emb, context)
-            hs.append(h)
-        h = self.middle_block(h, emb, context)
-        for module in self.output_blocks:
-            h = torch.cat([h, hs.pop()], dim=1)
-            h = module(h, emb, context)
-        h = h.type(x.dtype)
-
-        return self.out(h)

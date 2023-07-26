@@ -2,7 +2,6 @@ import torch
 import pytorch_lightning as pl
 
 from ldm.modules.diffusionmodules.model import Encoder, Decoder
-from ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
 import pdb
 
@@ -65,24 +64,8 @@ class AutoencoderKL(pl.LightningModule):
         self.embed_dim = embed_dim
         self.monitor = monitor
 
-    def encode(self, x):
-        h = self.encoder(x)
-        moments = self.quant_conv(h)
-        posterior = DiagonalGaussianDistribution(moments)
-        return posterior
-
     def decode(self, z):
         z = self.post_quant_conv(z)
         dec = self.decoder(z)
         return dec
 
-    def forward(self, input, sample_posterior=True):
-        pdb.set_trace()
-
-        posterior = self.encode(input)
-        if sample_posterior:
-            z = posterior.sample()
-        else:
-            z = posterior.mode()
-        dec = self.decode(z)
-        return dec, posterior
