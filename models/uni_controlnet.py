@@ -7,6 +7,11 @@ from torchvision.utils import make_grid
 from ldm.models.diffusion.ddpm import LatentDiffusion
 from ldm.util import log_txt_as_img, instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
+
+# xxxx1111
+from models.local_adapter import LocalAdapter
+from models.global_adapter import GlobalAdapter
+
 import pdb
 
 class UniControlNet(LatentDiffusion):
@@ -39,10 +44,10 @@ class UniControlNet(LatentDiffusion):
         assert mode in ['local', 'global', 'uni']
         self.mode = mode
         if self.mode in ['local', 'uni']:
-            self.local_adapter = instantiate_from_config(local_control_config)
+            self.local_adapter = instantiate_from_config(local_control_config) # models.local_adapter.LocalAdapter
             self.local_control_scales = [1.0] * 13
         if self.mode in ['global', 'uni']:
-            self.global_adapter = instantiate_from_config(global_control_config)
+            self.global_adapter = instantiate_from_config(global_control_config) # models.global_adapter.GlobalAdapter
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):

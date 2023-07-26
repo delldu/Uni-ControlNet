@@ -25,6 +25,9 @@ from annotator.content import ContentDetector
 from models.util import create_model, load_state_dict
 from models.ddim_hacked import DDIMSampler
 
+from  models.uni_controlnet import UniControlNet # xxxx1111
+
+import pdb
 
 apply_canny = CannyDetector()
 # apply_mlsd = MLSDdetector()
@@ -37,6 +40,19 @@ apply_canny = CannyDetector()
 
 
 model = create_model('./configs/uni_v15.yaml').cpu()
+# model -- models.uni_controlnet.UniControlNet
+
+# model.model -- ldm.models.diffusion.ddpm.DiffusionWrapper
+# model.model.diffusion_model -- models.local_adapter.LocalControlUNetModel
+# model.first_stage_model -- ldm.models.autoencoder.AutoencoderKL
+# model.cond_stage_model -- ldm.modules.encoders.modules.FrozenCLIPEmbedder
+
+# model.local_adapter -- models.local_adapter.LocalAdapter
+# model.global_adapter -- models.global_adapter.GlobalAdapter
+
+pdb.set_trace()
+
+
 model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
