@@ -1,10 +1,7 @@
 import os
 import torch
-
-from omegaconf import OmegaConf
-from ldm.util import instantiate_from_config
-from  models.uni_controlnet import UniControlNet # xxxx1111
-
+from  models.uni_controlnet import UniControlNet
+import pdb
 
 def get_state_dict(d):
     return d.get('state_dict', d)
@@ -18,15 +15,24 @@ def load_state_dict(ckpt_path, location='cpu'):
     else:
         state_dict = get_state_dict(torch.load(ckpt_path, map_location=torch.device(location)))
     state_dict = get_state_dict(state_dict)
+
+    remove_keys = [
+        "sqrt_alphas_cumprod",
+        "sqrt_one_minus_alphas_cumprod",
+        "sqrt_recip_alphas_cumprod",
+        "sqrt_recipm1_alphas_cumprod",
+        "log_one_minus_alphas_cumprod",
+        "posterior_variance",
+        "posterior_log_variance_clipped",
+        "posterior_mean_coef1",
+        "posterior_mean_coef2",
+    ]
+    for key in remove_keys:
+        del state_dict[key]
+
     print(f'Loaded state_dict from [{ckpt_path}]')
     return state_dict
 
-
-# def create_model(config_path):
-#     config = OmegaConf.load(config_path)
-#     model = instantiate_from_config(config.model).cpu()
-#     print(f'Loaded model config from [{config_path}]')
-#     return model
 
 def create_model(version):
     print(f'Create model {version} ...')

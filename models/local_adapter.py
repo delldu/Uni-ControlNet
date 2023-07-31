@@ -187,10 +187,8 @@ class LocalAdapter(nn.Module):
             dims=2,
             use_checkpoint=True,
             num_heads=8,
-            use_spatial_transformer=True,  # custom transformer support
             transformer_depth=1,  # custom transformer support
             context_dim=768,  # custom transformer support
-            legacy=False,
     ):
         super().__init__()
 

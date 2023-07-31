@@ -2,9 +2,6 @@ import einops
 import torch
 
 from ldm.models.diffusion.ddpm import LatentDiffusion
-from ldm.util import instantiate_from_config
-
-# xxxx1111
 from models.local_adapter import LocalAdapter
 from models.global_adapter import GlobalAdapter
 
@@ -33,13 +30,9 @@ class UniControlNet(LatentDiffusion):
     '''
     def __init__(self, version="v1.5"):
         super().__init__(version=version)
-        # pp mode -- 'uni'
-        # local_control_config -- {'target': 'models.local_adapter.LocalAdapter' ... }
-        # global_control_config -- {'target': 'models.global_adapter.GlobalAdapter' ... }
-
-        self.local_adapter = LocalAdapter(version=version) # instantiate_from_config(local_control_config) # models.local_adapter.LocalAdapter
+        self.local_adapter = LocalAdapter(version=version)
         self.local_control_scales = [1.0] * 13
-        self.global_adapter = GlobalAdapter(version=version) # instantiate_from_config(global_control_config) # models.global_adapter.GlobalAdapter
+        self.global_adapter = GlobalAdapter(version=version)
 
 
     def apply_model(self, x_noisy, t, cond, global_strength=1.0):
@@ -73,7 +66,6 @@ class UniControlNet(LatentDiffusion):
 
     @torch.no_grad()
     def get_unconditional_conditioning(self, N):
-
         return self.get_learned_conditioning([""] * N)
 
 

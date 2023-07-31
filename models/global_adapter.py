@@ -1,6 +1,4 @@
 from torch import nn
-# from einops import rearrange
-
 from ldm.modules.attention import FeedForward
 import pdb
 

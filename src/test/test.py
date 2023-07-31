@@ -24,8 +24,7 @@ from annotator.content import ContentDetector
 
 from models.util import create_model, load_state_dict
 from models.ddim_hacked import DDIMSampler
-
-from  models.uni_controlnet import UniControlNet # xxxx1111
+from  models.uni_controlnet import UniControlNet
 
 import pdb
 
@@ -39,7 +38,7 @@ apply_canny = CannyDetector()
 # apply_content = ContentDetector()
 
 
-model = create_model("v1.5").cpu() # './configs/uni_v15.yaml'
+model = create_model("v1.5").cpu()
 # model -- models.uni_controlnet.UniControlNet
 
 # model.model -- ldm.models.diffusion.ddpm.DiffusionWrapper

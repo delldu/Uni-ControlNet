@@ -18,10 +18,6 @@ from ldm.modules.attention import SpatialTransformer
 import pdb
 
 class TimestepBlock(nn.Module):
-    """
-    Any module where forward() takes timestep embeddings as a second argument.
-    """
-
     @abstractmethod
     def forward(self, x, emb):
         """
@@ -30,11 +26,6 @@ class TimestepBlock(nn.Module):
 
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
-    """
-    A sequential module that passes timestep embeddings to the children that
-    support it as an extra input.
-    """
-
     def forward(self, x, emb, context=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
@@ -47,14 +38,6 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
 
 
 class Upsample(nn.Module):
-    """
-    An upsampling layer with an optional convolution.
-    :param channels: channels in the inputs and outputs.
-    :param use_conv: a bool determining if a convolution is applied.
-    :param dims: determines if the signal is 1D, 2D, or 3D. If 3D, then
-                 upsampling occurs in the inner-two dimensions.
-    """
-
     def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
         super().__init__()
         self.channels = channels
@@ -76,29 +59,8 @@ class Upsample(nn.Module):
             x = self.conv(x)
         return x
 
-# xxxx3333
-# class TransposedUpsample(nn.Module):
-#     'Learned 2x upsampling without padding'
-#     def __init__(self, channels, out_channels=None, ks=5):
-#         super().__init__()
-#         self.channels = channels
-#         self.out_channels = out_channels or channels
-
-#         self.up = nn.ConvTranspose2d(self.channels,self.out_channels,kernel_size=ks,stride=2)
-
-#     def forward(self,x):
-#         return self.up(x)
-
 
 class Downsample(nn.Module):
-    """
-    A downsampling layer with an optional convolution.
-    :param channels: channels in the inputs and outputs.
-    :param use_conv: a bool determining if a convolution is applied.
-    :param dims: determines if the signal is 1D, 2D, or 3D. If 3D, then
-                 downsampling occurs in the inner-two dimensions.
-    """
-
     def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
         super().__init__()
         self.channels = channels
@@ -120,21 +82,6 @@ class Downsample(nn.Module):
     
 
 class ResBlock(TimestepBlock):
-    """
-    A residual block that can optionally change the number of channels.
-    :param channels: the number of input channels.
-    :param emb_channels: the number of timestep embedding channels.
-    :param dropout: the rate of dropout.
-    :param out_channels: if specified, the number of out channels.
-    :param use_conv: if True and out_channels is specified, use a spatial
-        convolution instead of a smaller 1x1 convolution to change the
-        channels in the skip connection.
-    :param dims: determines if the signal is 1D, 2D, or 3D.
-    :param use_checkpoint: if True, use gradient checkpointing on this module.
-    :param up: if True, use this block for upsampling.
-    :param down: if True, use this block for downsampling.
-    """
-
     def __init__(
         self,
         channels,
@@ -205,39 +152,6 @@ def count_flops_attn(model, _x, y):
     model.total_ops += torch.DoubleTensor([matmul_ops])
 
 
-# xxxx3333
-# class QKVAttentionLegacy(nn.Module):
-#     """
-#     A module which performs QKV attention. Matches legacy QKVAttention + input/ouput heads shaping
-#     """
-
-#     def __init__(self, n_heads):
-#         super().__init__()
-#         self.n_heads = n_heads
-
-#     def forward(self, qkv):
-#         """
-#         Apply QKV attention.
-#         :param qkv: an [N x (H * 3 * C) x T] tensor of Qs, Ks, and Vs.
-#         :return: an [N x (H * C) x T] tensor after attention.
-#         """
-#         bs, width, length = qkv.shape
-#         assert width % (3 * self.n_heads) == 0
-#         ch = width // (3 * self.n_heads)
-#         q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
-#         scale = 1 / math.sqrt(math.sqrt(ch))
-#         weight = torch.einsum(
-#             "bct,bcs->bts", q * scale, k * scale
-#         )  # More stable with f16 than dividing afterwards
-#         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
-#         a = torch.einsum("bts,bcs->bct", weight, v)
-#         return a.reshape(bs, -1, length)
-
-#     @staticmethod
-#     def count_flops(model, _x, y):
-#         return count_flops_attn(model, _x, y)
-
-
 class UNetModel(nn.Module):
     '''uni_v15.yaml
 
@@ -260,7 +174,6 @@ class UNetModel(nn.Module):
     def __init__(
         self,
         version="v1.5",
-        image_size=32,
         in_channels=4,
         model_channels=320,
         out_channels=4,
@@ -271,7 +184,6 @@ class UNetModel(nn.Module):
         dims=2,
         use_checkpoint=True,
         num_heads=8,
-        use_spatial_transformer=True,    # custom transformer support
         transformer_depth=1,              # custom transformer support
         context_dim=768,                 # custom transformer support
         legacy=False,
@@ -279,13 +191,8 @@ class UNetModel(nn.Module):
         super().__init__()
 
         self.model_channels = model_channels
-        # self.out_channels = out_channels
         self.num_res_blocks = len(channel_mult) * [num_res_blocks]
-
-        # self.attention_resolutions = attention_resolutions
-        # self.dropout = dropout
         self.channel_mult = channel_mult
-        # self.use_checkpoint = use_checkpoint
         self.num_heads = num_heads
         
         time_embed_dim = model_channels * 4
@@ -294,7 +201,6 @@ class UNetModel(nn.Module):
             nn.SiLU(),
             linear(time_embed_dim, time_embed_dim),
         )
-
 
         self.input_blocks = nn.ModuleList(
             [
