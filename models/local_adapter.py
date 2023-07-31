@@ -51,7 +51,6 @@ class LocalResBlock(nn.Module):
         dropout,
         out_channels=None,
         dims=2,
-        use_checkpoint=False,
         inject_channels=None
     ):
         super().__init__()
@@ -185,7 +184,6 @@ class LocalAdapter(nn.Module):
             dropout=0,
             channel_mult=(1, 2, 4, 4),
             dims=2,
-            use_checkpoint=True,
             num_heads=8,
             transformer_depth=1,  # custom transformer support
             context_dim=768,  # custom transformer support
@@ -228,7 +226,6 @@ class LocalAdapter(nn.Module):
                             dropout,
                             out_channels=mult * model_channels,
                             dims=dims,
-                            use_checkpoint=use_checkpoint,
                             inject_channels=inject_channels[level]
                         )
                     ]
@@ -240,7 +237,6 @@ class LocalAdapter(nn.Module):
                             dropout,
                             out_channels=mult * model_channels,
                             dims=dims,
-                            use_checkpoint=use_checkpoint,
                         )
                     ]
                 ch = mult * model_channels
@@ -249,8 +245,6 @@ class LocalAdapter(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            use_linear=False,
-                            use_checkpoint=use_checkpoint
                         )
                     )
                 self.input_blocks.append(LocalTimestepEmbedSequential(*layers))
@@ -275,19 +269,15 @@ class LocalAdapter(nn.Module):
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint,
             ),
             SpatialTransformer(
                 ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                use_linear=False,
-                use_checkpoint=use_checkpoint
             ),
             ResBlock(
                 ch,
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint,
             ),
         )
         self.middle_block_out = self.make_zero_conv(ch)

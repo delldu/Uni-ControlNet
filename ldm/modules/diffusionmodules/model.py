@@ -18,27 +18,6 @@ except:
     XFORMERS_IS_AVAILBLE = False
     print("No module 'xformers'. Proceeding without it.")
 
-# xxxx3333
-# def get_timestep_embedding(timesteps, embedding_dim):
-#     """
-#     This matches the implementation in Denoising Diffusion Probabilistic Models:
-#     From Fairseq.
-#     Build sinusoidal embeddings.
-#     This matches the implementation in tensor2tensor, but differs slightly
-#     from the description in Section 3.5 of "Attention Is All You Need".
-#     """
-#     assert len(timesteps.shape) == 1
-
-#     half_dim = embedding_dim // 2
-#     emb = math.log(10000) / (half_dim - 1)
-#     emb = torch.exp(torch.arange(half_dim, dtype=torch.float32) * -emb)
-#     emb = emb.to(device=timesteps.device)
-#     emb = timesteps.float()[:, None] * emb[None, :]
-#     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
-#     if embedding_dim % 2 == 1:  # zero pad
-#         emb = torch.nn.functional.pad(emb, (0,1,0,0))
-#     return emb
-
 
 def nonlinearity(x):
     # swish
@@ -64,30 +43,25 @@ class Upsample(nn.Module):
         return x
 
 class Downsample(nn.Module):
-    def __init__(self, in_channels, with_conv=True):
+    def __init__(self, in_channels):
         super().__init__()
-        self.with_conv = with_conv
-        if self.with_conv:
-            # no asymmetric padding in torch conv, must do it ourselves
-            self.conv = torch.nn.Conv2d(in_channels,
-                                        in_channels,
-                                        kernel_size=3,
-                                        stride=2,
-                                        padding=0)
+        # no asymmetric padding in torch conv, must do it ourselves
+        self.conv = nn.Conv2d(in_channels,
+                                    in_channels,
+                                    kernel_size=3,
+                                    stride=2,
+                                    padding=0)
 
     def forward(self, x):
-        if self.with_conv:
-            pad = (0,1,0,1)
-            x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
-            x = self.conv(x)
-        else:
-            x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
+        pad = (0,1,0,1)
+        x = F.pad(x, pad, mode="constant", value=0)
+        x = self.conv(x)
         return x
 
 
 class ResnetBlock(nn.Module):
     def __init__(self, *, in_channels, out_channels=None,
-                 dropout, temb_channels=512):
+                 dropout):
         super().__init__()
         self.in_channels = in_channels
         out_channels = in_channels if out_channels is None else out_channels
@@ -99,9 +73,7 @@ class ResnetBlock(nn.Module):
                                      kernel_size=3,
                                      stride=1,
                                      padding=1)
-        if temb_channels > 0:
-            self.temb_proj = nn.Linear(temb_channels,
-                                                 out_channels)
+
         self.norm2 = Normalize(out_channels)
         self.dropout = nn.Dropout(dropout)
         self.conv2 = nn.Conv2d(out_channels,
@@ -135,7 +107,7 @@ class ResnetBlock(nn.Module):
         if self.in_channels != self.out_channels:
             x = self.nin_shortcut(x)
 
-        return x+h
+        return x + h
 
 
 class AttnBlock(nn.Module):
@@ -313,7 +285,6 @@ class Encoder(nn.Module):
         super().__init__()
         if use_linear_attn: attn_type = "linear"
         self.ch = ch
-        self.temb_ch = 0
         self.num_resolutions = len(ch_mult)
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
@@ -338,7 +309,6 @@ class Encoder(nn.Module):
             for i_block in range(self.num_res_blocks):
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
-                                         temb_channels=self.temb_ch,
                                          dropout=dropout))
                 block_in = block_out
                 if curr_res in attn_resolutions:
@@ -355,12 +325,10 @@ class Encoder(nn.Module):
         self.mid = nn.Module()
         self.mid.block_1 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
-                                       temb_channels=self.temb_ch,
                                        dropout=dropout)
         self.mid.attn_1 = make_attn(block_in, attn_type=attn_type)
         self.mid.block_2 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
-                                       temb_channels=self.temb_ch,
                                        dropout=dropout)
 
         # end
@@ -407,7 +375,6 @@ class Decoder(nn.Module):
         super().__init__()
         if use_linear_attn: attn_type = "linear"
         self.ch = ch
-        self.temb_ch = 0
         self.num_resolutions = len(ch_mult)
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
@@ -432,12 +399,10 @@ class Decoder(nn.Module):
         self.mid = nn.Module()
         self.mid.block_1 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
-                                       temb_channels=self.temb_ch,
                                        dropout=dropout)
         self.mid.attn_1 = make_attn(block_in, attn_type=attn_type)
         self.mid.block_2 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
-                                       temb_channels=self.temb_ch,
                                        dropout=dropout)
 
         # upsampling
@@ -449,7 +414,6 @@ class Decoder(nn.Module):
             for i_block in range(self.num_res_blocks+1):
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
-                                         temb_channels=self.temb_ch,
                                          dropout=dropout))
                 block_in = block_out
                 if curr_res in attn_resolutions:

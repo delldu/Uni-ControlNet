@@ -109,11 +109,6 @@ class DDPM(nn.Module):
         self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
 
 
-    # def forward(self, x, *args, **kwargs):
-    #     t = torch.randint(0, self.num_timesteps, (x.shape[0],), device=self.device).long()
-    #     return self.p_losses(x, t, *args, **kwargs)
-
-
 class LatentDiffusion(DDPM):
     """main class"""
 
@@ -128,11 +123,6 @@ class LatentDiffusion(DDPM):
         self.instantiate_first_stage()
         self.instantiate_cond_stage()
 
-    # xxxx3333
-    # def register_schedule(self,
-    #                       beta_schedule="linear", timesteps=1000,
-    #                       linear_start=1e-4, linear_end=2e-2):
-    #     super().register_schedule(beta_schedule, timesteps, linear_start, linear_end)
 
     def instantiate_first_stage(self):
         model = AutoencoderKL(version=self.version)

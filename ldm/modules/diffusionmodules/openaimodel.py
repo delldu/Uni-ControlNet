@@ -90,7 +90,6 @@ class ResBlock(TimestepBlock):
         out_channels=None,
         use_conv=False,
         dims=2,
-        use_checkpoint=True,
     ):
         super().__init__()
         self.channels = channels
@@ -215,7 +214,6 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=mult * model_channels,
                         dims=dims,
-                        use_checkpoint=True,
                     )
                 ]
                 ch = mult * model_channels
@@ -224,8 +222,6 @@ class UNetModel(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            use_linear=False,
-                            use_checkpoint=True
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -250,19 +246,15 @@ class UNetModel(nn.Module):
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=True,
             ),
             SpatialTransformer(  # always uses a self-attn
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            use_linear=False,
-                            use_checkpoint=True
                         ),
             ResBlock(
                 ch,
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=True,
             ),
         )
 
@@ -277,7 +269,6 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=model_channels * mult,
                         dims=dims,
-                        use_checkpoint=True,
                     )
                 ]
                 ch = model_channels * mult
@@ -286,8 +277,6 @@ class UNetModel(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            use_linear=False,
-                            use_checkpoint=True
                         )
                     )
                 if level and i == self.num_res_blocks[level]:
