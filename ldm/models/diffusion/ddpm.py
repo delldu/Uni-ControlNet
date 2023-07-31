@@ -11,13 +11,38 @@ import torch.nn as nn
 import numpy as np
 from functools import partial
 
-from ldm.util import default, count_params
+from ldm.util import count_params
 from ldm.models.autoencoder import AutoencoderKL
 from ldm.modules.diffusionmodules.util import make_beta_schedule
 from ldm.modules.encoders.modules import FrozenCLIPEmbedder
 from models.local_adapter import LocalControlUNetModel
 
 import pdb
+
+class DiffusionWrapper(nn.Module):
+    '''uni_v15.yaml
+
+    unet_config:
+      target: models.local_adapter.LocalControlUNetModel
+      params:
+        image_size: 32
+        in_channels: 4
+        model_channels: 320
+        out_channels: 4
+        num_res_blocks: 2
+        attention_resolutions: [4, 2, 1]
+        channel_mult: [1, 2, 4, 4]
+        use_checkpoint: True
+        num_heads: 8
+        use_spatial_transformer: True
+        transformer_depth: 1
+        context_dim: 768
+        legacy: False
+    '''
+
+    def __init__(self, version="1.5"):
+        super().__init__()
+        self.diffusion_model = LocalControlUNetModel(version=version)
 
 
 class DDPM(nn.Module):
@@ -48,19 +73,14 @@ class DDPM(nn.Module):
                  beta_schedule="linear",
                  linear_start=1e-4,
                  linear_end=2e-2,
-                 v_posterior=0.,  # weight for choosing posterior variance as sigma = (1-v) * beta_tilde + v * beta
                  parameterization="eps",  # all assuming fixed variance schedules
                  ):
         super().__init__()
 
         assert parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
         self.parameterization = parameterization
-        print(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
-        self.cond_stage_model = None
         self.model = DiffusionWrapper(version=version) 
         count_params(self.model, verbose=True)
-
-        self.v_posterior = v_posterior
 
         self.register_schedule(beta_schedule=beta_schedule, timesteps=timesteps,
                                linear_start=1e-4, linear_end=2e-2)
@@ -108,11 +128,11 @@ class LatentDiffusion(DDPM):
         self.instantiate_first_stage()
         self.instantiate_cond_stage()
 
-
-    def register_schedule(self,
-                          beta_schedule="linear", timesteps=1000,
-                          linear_start=1e-4, linear_end=2e-2):
-        super().register_schedule(beta_schedule, timesteps, linear_start, linear_end)
+    # xxxx3333
+    # def register_schedule(self,
+    #                       beta_schedule="linear", timesteps=1000,
+    #                       linear_start=1e-4, linear_end=2e-2):
+    #     super().register_schedule(beta_schedule, timesteps, linear_start, linear_end)
 
     def instantiate_first_stage(self):
         model = AutoencoderKL(version=self.version)
@@ -131,7 +151,7 @@ class LatentDiffusion(DDPM):
         c = self.cond_stage_model.encode(c)
         return c
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def decode_first_stage(self, z):
         # ==> come here
         z = 1. / self.scale_factor * z
@@ -140,29 +160,3 @@ class LatentDiffusion(DDPM):
     # @torch.no_grad()
     # def encode_first_stage(self, x):
     #     return self.first_stage_model.encode(x)
-
-
-class DiffusionWrapper(nn.Module):
-    '''uni_v15.yaml
-
-    unet_config:
-      target: models.local_adapter.LocalControlUNetModel
-      params:
-        image_size: 32
-        in_channels: 4
-        model_channels: 320
-        out_channels: 4
-        num_res_blocks: 2
-        attention_resolutions: [4, 2, 1]
-        channel_mult: [1, 2, 4, 4]
-        use_checkpoint: True
-        num_heads: 8
-        use_spatial_transformer: True
-        transformer_depth: 1
-        context_dim: 768
-        legacy: False
-    '''
-
-    def __init__(self, version="1.5"):
-        super().__init__()
-        self.diffusion_model = LocalControlUNetModel(version=version)

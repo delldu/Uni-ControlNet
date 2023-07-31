@@ -90,7 +90,7 @@ class ResBlock(TimestepBlock):
         out_channels=None,
         use_conv=False,
         dims=2,
-        use_checkpoint=False,
+        use_checkpoint=True,
     ):
         super().__init__()
         self.channels = channels
@@ -98,7 +98,6 @@ class ResBlock(TimestepBlock):
         self.dropout = dropout
         self.out_channels = out_channels or channels
         self.use_conv = use_conv
-        # self.use_checkpoint = use_checkpoint
 
         self.in_layers = nn.Sequential(
             normalization(channels),
@@ -134,7 +133,7 @@ class ResBlock(TimestepBlock):
 
     def forward(self, x, emb):
         h = self.in_layers(x)
-        emb_out = self.emb_layers(emb).type(h.dtype)
+        emb_out = self.emb_layers(emb) # .type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
 
@@ -182,18 +181,13 @@ class UNetModel(nn.Module):
         dropout=0,
         channel_mult=(1, 2, 4, 4),
         dims=2,
-        use_checkpoint=True,
         num_heads=8,
         transformer_depth=1,              # custom transformer support
         context_dim=768,                 # custom transformer support
-        legacy=False,
     ):
         super().__init__()
-
         self.model_channels = model_channels
         self.num_res_blocks = len(channel_mult) * [num_res_blocks]
-        self.channel_mult = channel_mult
-        self.num_heads = num_heads
         
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -221,7 +215,7 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=mult * model_channels,
                         dims=dims,
-                        use_checkpoint=use_checkpoint,
+                        use_checkpoint=True,
                     )
                 ]
                 ch = mult * model_channels
@@ -230,8 +224,8 @@ class UNetModel(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            disable_self_attn=False, use_linear=False,
-                            use_checkpoint=use_checkpoint
+                            use_linear=False,
+                            use_checkpoint=True
                         )
                     )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -256,19 +250,19 @@ class UNetModel(nn.Module):
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint,
+                use_checkpoint=True,
             ),
             SpatialTransformer(  # always uses a self-attn
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            disable_self_attn=False, use_linear=False,
-                            use_checkpoint=use_checkpoint
+                            use_linear=False,
+                            use_checkpoint=True
                         ),
             ResBlock(
                 ch,
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint,
+                use_checkpoint=True,
             ),
         )
 
@@ -283,7 +277,7 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=model_channels * mult,
                         dims=dims,
-                        use_checkpoint=use_checkpoint,
+                        use_checkpoint=True,
                     )
                 ]
                 ch = model_channels * mult
@@ -292,8 +286,8 @@ class UNetModel(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            disable_self_attn=False, use_linear=False,
-                            use_checkpoint=use_checkpoint
+                            use_linear=False,
+                            use_checkpoint=True
                         )
                     )
                 if level and i == self.num_res_blocks[level]:

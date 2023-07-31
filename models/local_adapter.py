@@ -249,7 +249,7 @@ class LocalAdapter(nn.Module):
                     layers.append(
                         SpatialTransformer(
                             ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                            disable_self_attn=False, use_linear=False,
+                            use_linear=False,
                             use_checkpoint=use_checkpoint
                         )
                     )
@@ -279,7 +279,7 @@ class LocalAdapter(nn.Module):
             ),
             SpatialTransformer(
                 ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                disable_self_attn=False, use_linear=False,
+                use_linear=False,
                 use_checkpoint=use_checkpoint
             ),
             ResBlock(

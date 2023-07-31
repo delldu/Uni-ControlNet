@@ -2,7 +2,6 @@ from inspect import isfunction
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn, einsum
 from einops import rearrange
 from einops.layers.torch import Rearrange
 from typing import Optional, Any
@@ -67,7 +66,7 @@ def zero_module(module):
 
 
 def Normalize(in_channels):
-    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+    return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 
@@ -95,20 +94,28 @@ class CrossAttention(nn.Module):
         h = self.heads
 
         q = self.to_q(x)
-        context = default(context, x)
+        # context = default(context, x)
+        if context is None:
+            context = x
         k = self.to_k(context)
         v = self.to_v(context)
 
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
-        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        # q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+        q = self.BxNxHxD_BHxNxD(q.reshape(q.shape[0], q.shape[1], h, -1)) # q.shpe[2] // h
+        k = self.BxNxHxD_BHxNxD(k.reshape(k.shape[0], k.shape[1], h, -1))
+        v = self.BxNxHxD_BHxNxD(v.reshape(v.shape[0], v.shape[1], h, -1))
+        sim = torch.einsum('b i d, b j d -> b i j', q, k) * self.scale
         
         del q, k
     
         # attention, what we cannot get enough of
         sim = sim.softmax(dim=-1)
 
-        out = einsum('b i j, b j d -> b i d', sim, v)
-        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        out = torch.einsum('b i j, b j d -> b i d', sim, v)
+        bh, n, d = out.size()
+        # out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        out = self.BxHxNxD_BxNxHD(out.reshape(-1, h, n, d)) # out.shape[0]//h
+
         return self.to_out(out)
 
 
@@ -133,28 +140,38 @@ class MemoryEfficientCrossAttention(nn.Module):
 
     def forward(self, x, context=None):
         q = self.to_q(x)
-        context = default(context, x)
+        # context = default(context, x)
+        if context is None:
+            context = x
         k = self.to_k(context)
         v = self.to_v(context)
 
-        b, _, _ = q.shape
-        q, k, v = map(
-            lambda t: t.unsqueeze(3)
-            .reshape(b, t.shape[1], self.heads, self.dim_head)
-            .permute(0, 2, 1, 3)
-            .reshape(b * self.heads, t.shape[1], self.dim_head)
-            .contiguous(),
-            (q, k, v),
-        )
+        B, HW, C = q.shape # [1, 5120, 320]
+        # self.heads -- 8, self.dim_head -- 40
+        # b, _, _ = q.shape
+        # q, k, v = map(
+        #     lambda t: t.unsqueeze(3)
+        #     .reshape(b, t.shape[1], self.heads, self.dim_head)
+        #     .permute(0, 2, 1, 3)
+        #     .reshape(b * self.heads, t.shape[1], self.dim_head)
+        #     .contiguous(),
+        #     (q, k, v),
+        # )
+        q = q.unsqueeze(3).reshape(B, q.shape[1], self.heads, self.dim_head).permute(0, 2, 1, 3) \
+            .reshape(B * self.heads, q.shape[1], self.dim_head).contiguous()
+        k = k.unsqueeze(3).reshape(B, k.shape[1], self.heads, self.dim_head).permute(0, 2, 1, 3) \
+            .reshape(B * self.heads, k.shape[1], self.dim_head).contiguous()
+        v = v.unsqueeze(3).reshape(B, v.shape[1], self.heads, self.dim_head).permute(0, 2, 1, 3) \
+            .reshape(B * self.heads, v.shape[1], self.dim_head).contiguous()
 
         # actually compute the attention, what we cannot get enough of
         out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
 
         out = (
             out.unsqueeze(0)
-            .reshape(b, self.heads, out.shape[1], self.dim_head)
+            .reshape(B, self.heads, out.shape[1], self.dim_head)
             .permute(0, 2, 1, 3)
-            .reshape(b, out.shape[1], self.heads * self.dim_head)
+            .reshape(B, out.shape[1], self.heads * self.dim_head)
         )
         return self.to_out(out)
 
@@ -164,26 +181,23 @@ class BasicTransformerBlock(nn.Module):
         "softmax": CrossAttention,  # vanilla attention
         "softmax-xformers": MemoryEfficientCrossAttention
     }
-    def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True, checkpoint=True,
-                 disable_self_attn=False):
+    def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True):
         super().__init__()
         attn_mode = "softmax-xformers" if XFORMERS_IS_AVAILBLE else "softmax"
         assert attn_mode in self.ATTENTION_MODES
         attn_cls = self.ATTENTION_MODES[attn_mode]
-        self.disable_self_attn = disable_self_attn
         self.attn1 = attn_cls(query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout,
-                              context_dim=context_dim if self.disable_self_attn else None)  # is a self-attention if not self.disable_self_attn
+                              context_dim=None)
         self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
         self.attn2 = attn_cls(query_dim=dim, context_dim=context_dim,
                               heads=n_heads, dim_head=d_head, dropout=dropout)  # is self-attn if context is none
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
         self.norm3 = nn.LayerNorm(dim)
-        self.checkpoint = checkpoint
 
 
     def forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
+        x = self.attn1(self.norm1(x), context=None) + x
         x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
         return x
@@ -200,7 +214,7 @@ class SpatialTransformer(nn.Module):
     """
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None,
-                 disable_self_attn=False, use_linear=False,
+                 use_linear=False,
                  use_checkpoint=True):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
@@ -218,8 +232,7 @@ class SpatialTransformer(nn.Module):
             self.proj_in = nn.Linear(in_channels, inner_dim)
 
         self.transformer_blocks = nn.ModuleList(
-            [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d],
-                                   disable_self_attn=disable_self_attn, checkpoint=use_checkpoint)
+            [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d])
                 for d in range(depth)]
         )
         if not use_linear:

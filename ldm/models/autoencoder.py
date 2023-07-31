@@ -33,7 +33,7 @@ class AutoencoderKL(nn.Module):
                  ):
         super().__init__()
         ddconfig = {
-            'double_z': True, 
+            # 'double_z': True, 
             'z_channels': 4, 
             'resolution': 256, 
             'in_channels': 3, 
