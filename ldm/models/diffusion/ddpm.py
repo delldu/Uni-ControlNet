@@ -85,8 +85,8 @@ class DDPM(nn.Module):
         self.register_schedule(beta_schedule=beta_schedule, timesteps=timesteps,
                                linear_start=1e-4, linear_end=2e-2)
 
-        logvar = torch.full(fill_value=0.0, size=(self.num_timesteps,))
-        self.register_buffer('logvar', logvar)
+        # logvar = torch.full(fill_value=0.0, size=(self.num_timesteps,))
+        # self.register_buffer('logvar', logvar)
 
 
     def register_schedule(self, beta_schedule="linear", timesteps=1000,

@@ -50,11 +50,9 @@ class Upsample(nn.Module):
     def forward(self, x):
         assert x.shape[1] == self.channels
         if self.dims == 3:
-            x = F.interpolate(
-                x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest"
-            )
+            x = F.interpolate(x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest")
         else:
-            x = F.interpolate(x, scale_factor=2, mode="nearest")
+            x = F.interpolate(x, scale_factor=2.0, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
         return x
@@ -69,9 +67,7 @@ class Downsample(nn.Module):
         self.dims = dims
         stride = 2 if dims != 3 else (1, 2, 2)
         if use_conv:
-            self.op = conv_nd(
-                dims, self.channels, self.out_channels, 3, stride=stride, padding=padding
-            )
+            self.op = conv_nd(dims, self.channels, self.out_channels, 3, stride=stride, padding=padding)
         else:
             assert self.channels == self.out_channels
             self.op = avg_pool_nd(dims, kernel_size=stride, stride=stride)
@@ -106,18 +102,13 @@ class ResBlock(TimestepBlock):
 
         self.emb_layers = nn.Sequential(
             nn.SiLU(),
-            linear(
-                emb_channels,
-                self.out_channels,
-            ),
+            linear(emb_channels, self.out_channels),
         )
         self.out_layers = nn.Sequential(
             normalization(self.out_channels),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(
-                conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
-            ),
+            zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
         )
 
         if self.out_channels == channels:
@@ -197,9 +188,7 @@ class UNetModel(nn.Module):
 
         self.input_blocks = nn.ModuleList(
             [
-                TimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
-                )
+                TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))
             ]
         )
         input_block_chans = [model_channels]
@@ -208,54 +197,26 @@ class UNetModel(nn.Module):
         for level, mult in enumerate(channel_mult):
             for nr in range(self.num_res_blocks[level]):
                 layers = [
-                    ResBlock(
-                        ch,
-                        time_embed_dim,
-                        dropout,
-                        out_channels=mult * model_channels,
-                        dims=dims,
-                    )
+                    ResBlock(ch, time_embed_dim, dropout, out_channels=mult * model_channels, dims=dims)
                 ]
                 ch = mult * model_channels
                 if ds in attention_resolutions:
                     dim_head = ch // num_heads
-                    layers.append(
-                        SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                        )
-                    )
+                    layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
                 out_ch = ch
-                self.input_blocks.append(
-                    TimestepEmbedSequential(
-                        Downsample(
-                            ch, True, dims=dims, out_channels=out_ch
-                        )
-                    )
-                )
+                self.input_blocks.append(TimestepEmbedSequential(Downsample(ch, True, dims=dims, out_channels=out_ch)))
                 ch = out_ch
                 input_block_chans.append(ch)
                 ds *= 2
 
         dim_head = ch // num_heads
         self.middle_block = TimestepEmbedSequential(
-            ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
-                dims=dims,
-            ),
-            SpatialTransformer(  # always uses a self-attn
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                        ),
-            ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
-                dims=dims,
-            ),
+            ResBlock(ch, time_embed_dim, dropout, dims=dims),
+            SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim),
+            ResBlock(ch, time_embed_dim, dropout, dims=dims),
         )
 
         self.output_blocks = nn.ModuleList([])
@@ -263,27 +224,15 @@ class UNetModel(nn.Module):
             for i in range(self.num_res_blocks[level] + 1):
                 ich = input_block_chans.pop()
                 layers = [
-                    ResBlock(
-                        ch + ich,
-                        time_embed_dim,
-                        dropout,
-                        out_channels=model_channels * mult,
-                        dims=dims,
-                    )
+                    ResBlock(ch + ich, time_embed_dim, dropout, out_channels=model_channels * mult, dims=dims)
                 ]
                 ch = model_channels * mult
                 if ds in attention_resolutions:
                     dim_head = ch // num_heads
-                    layers.append(
-                        SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                        )
-                    )
+                    layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 if level and i == self.num_res_blocks[level]:
                     out_ch = ch
-                    layers.append(
-                        Upsample(ch, True, dims=dims, out_channels=out_ch)
-                    )
+                    layers.append(Upsample(ch, True, dims=dims, out_channels=out_ch))
                     ds //= 2
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 

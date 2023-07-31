@@ -26,7 +26,12 @@ def load_state_dict(ckpt_path, location='cpu'):
         "posterior_log_variance_clipped",
         "posterior_mean_coef1",
         "posterior_mean_coef2",
+        "logvar"
     ]
+    for k in state_dict.keys():
+        if k.startswith("first_stage_model.encoder."):
+            remove_keys.append(k)
+
     for key in remove_keys:
         del state_dict[key]
 
