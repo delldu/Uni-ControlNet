@@ -61,8 +61,8 @@ class AutoencoderKL(pl.LightningModule):
         assert ddconfig["double_z"]
         self.quant_conv = torch.nn.Conv2d(2*ddconfig["z_channels"], 2*embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
-        self.embed_dim = embed_dim
-        self.monitor = monitor
+        # self.embed_dim = embed_dim
+        # self.monitor = monitor
 
     def decode(self, z):
         z = self.post_quant_conv(z)

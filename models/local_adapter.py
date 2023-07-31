@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 from ldm.modules.diffusionmodules.util import (
-    # checkpoint,
     conv_nd,
     linear,
     zero_module,
@@ -85,11 +84,6 @@ class LocalResBlock(nn.Module):
             self.skip_connection = nn.Identity()
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
-
-    # def forward(self, x, emb, local_conditions):
-    #     return checkpoint(
-    #         self._forward, (x, emb, local_conditions), self.parameters(), self.use_checkpoint
-    #     )
 
     def forward(self, x, emb, local_conditions):
         # ==> pdb.set_trace()
