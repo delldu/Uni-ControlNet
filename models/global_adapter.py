@@ -26,6 +26,9 @@ class GlobalAdapter(nn.Module):
         self.norm2 = nn.LayerNorm(dim_out1)
 
     def forward(self, x):
+        # x.size() -- [1, 768]
+        # x.min(), x.max() -- 0., 0
+
         x = self.ff1(self.norm1(x))
         x = self.ff2(self.norm2(x))
         # x = rearrange(x, 'b (n d) -> b n d', n=self.channel_mult[-1], d=self.in_dim).contiguous()

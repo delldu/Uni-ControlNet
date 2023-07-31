@@ -79,12 +79,25 @@ class FrozenCLIPEmbedder(nn.Module):
             param.requires_grad = False
 
     def forward(self, text):
+        # ['a diagram, best quality, extremely detailed']
         batch_encoding = self.tokenizer(text, truncation=True, max_length=self.max_length,
                                         return_overflowing_tokens=False, padding="max_length", return_tensors="pt")
         tokens = batch_encoding["input_ids"].to(self.device)
+
+        # (Pdb) batch_encoding["input_ids"].size() -- [1, 77]
+        # (Pdb) batch_encoding["input_ids"]
+        # tensor([[49406,   320, 22697,   267,   949,  3027,   267,  6519, 12609, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
+        #          49407, 49407, 49407, 49407, 49407, 49407, 49407]])
+
         outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
         z = outputs.last_hidden_state
-        return z
+        return z # z.size() -- [1, 77, 768]
 
     def encode(self, text):
         return self(text)

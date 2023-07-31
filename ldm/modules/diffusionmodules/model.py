@@ -2,6 +2,8 @@
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from einops.layers.torch import Rearrange
 import numpy as np
 from einops import rearrange
 from typing import Optional, Any
@@ -190,7 +192,7 @@ class AttnBlock(nn.Module):
         k = k.reshape(b,c,h*w) # b,c,hw
         w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
         w_ = w_ * (int(c)**(-0.5))
-        w_ = torch.nn.functional.softmax(w_, dim=2)
+        w_ = F.softmax(w_, dim=2)
 
         # attend to values
         v = v.reshape(b,c,h*w)
@@ -200,7 +202,7 @@ class AttnBlock(nn.Module):
 
         h_ = self.proj_out(h_)
 
-        return x+h_
+        return x + h_
 
 class MemoryEfficientAttnBlock(nn.Module):
     """
@@ -235,6 +237,8 @@ class MemoryEfficientAttnBlock(nn.Module):
                                         stride=1,
                                         padding=0)
         self.attention_op: Optional[Any] = None
+        self.BxCxHxW_BxHWxC = Rearrange('b c h w -> b (h w) c')
+        self.BxHxWxC_BxCxHxW = Rearrange('b h w c -> b c h w')
 
     def forward(self, x):
         h_ = x

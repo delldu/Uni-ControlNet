@@ -9,7 +9,6 @@ https://github.com/CompVis/taming-transformers
 import torch
 import torch.nn as nn
 import numpy as np
-import pytorch_lightning as pl
 from functools import partial
 
 from ldm.util import default, count_params, instantiate_from_config
@@ -24,7 +23,7 @@ from models.local_adapter import LocalControlUNetModel
 import pdb
 
 
-class DDPM(pl.LightningModule):
+class DDPM(nn.Module):
     '''uni_v15.yaml
 
     unet_config:
@@ -137,9 +136,9 @@ class DDPM(pl.LightningModule):
         self.register_buffer('posterior_mean_coef2', to_torch(
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
 
-    def forward(self, x, *args, **kwargs):
-        t = torch.randint(0, self.num_timesteps, (x.shape[0],), device=self.device).long()
-        return self.p_losses(x, t, *args, **kwargs)
+    # def forward(self, x, *args, **kwargs):
+    #     t = torch.randint(0, self.num_timesteps, (x.shape[0],), device=self.device).long()
+    #     return self.p_losses(x, t, *args, **kwargs)
 
 
 class LatentDiffusion(DDPM):
@@ -212,7 +211,7 @@ class LatentDiffusion(DDPM):
     #     return self.first_stage_model.encode(x)
 
 
-class DiffusionWrapper(pl.LightningModule):
+class DiffusionWrapper(nn.Module):
     '''uni_v15.yaml
 
     unet_config:

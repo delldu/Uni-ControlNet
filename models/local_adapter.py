@@ -326,7 +326,7 @@ class LocalControlUNetModel(UNetModel):
         # x.size() -- [1, 4, 80, 64]
         # context.size() -- [1, 81, 768]
         # len(local_control) -- 13
-        # (Pdb) local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]
+        # local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]
 
         hs = []
         with torch.no_grad():

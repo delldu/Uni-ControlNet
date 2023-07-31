@@ -1,9 +1,12 @@
 from inspect import isfunction
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange
+from einops.layers.torch import Rearrange
 from typing import Optional, Any
+import pdb
 
 try:
     import xformers
@@ -85,6 +88,8 @@ class CrossAttention(nn.Module):
             nn.Linear(inner_dim, query_dim),
             nn.Dropout(dropout)
         )
+        self.BxHxNxD_BxNxHD = Rearrange('b h n d -> b n (h d)')
+        self.BxNxHxD_BHxNxD = Rearrange('b n h d -> (b h) n d')
 
     def forward(self, x, context=None):
         h = self.heads

@@ -76,17 +76,18 @@ class Upsample(nn.Module):
             x = self.conv(x)
         return x
 
-class TransposedUpsample(nn.Module):
-    'Learned 2x upsampling without padding'
-    def __init__(self, channels, out_channels=None, ks=5):
-        super().__init__()
-        self.channels = channels
-        self.out_channels = out_channels or channels
+# xxxx3333
+# class TransposedUpsample(nn.Module):
+#     'Learned 2x upsampling without padding'
+#     def __init__(self, channels, out_channels=None, ks=5):
+#         super().__init__()
+#         self.channels = channels
+#         self.out_channels = out_channels or channels
 
-        self.up = nn.ConvTranspose2d(self.channels,self.out_channels,kernel_size=ks,stride=2)
+#         self.up = nn.ConvTranspose2d(self.channels,self.out_channels,kernel_size=ks,stride=2)
 
-    def forward(self,x):
-        return self.up(x)
+#     def forward(self,x):
+#         return self.up(x)
 
 
 class Downsample(nn.Module):
@@ -204,36 +205,37 @@ def count_flops_attn(model, _x, y):
     model.total_ops += torch.DoubleTensor([matmul_ops])
 
 
-class QKVAttentionLegacy(nn.Module):
-    """
-    A module which performs QKV attention. Matches legacy QKVAttention + input/ouput heads shaping
-    """
+# xxxx3333
+# class QKVAttentionLegacy(nn.Module):
+#     """
+#     A module which performs QKV attention. Matches legacy QKVAttention + input/ouput heads shaping
+#     """
 
-    def __init__(self, n_heads):
-        super().__init__()
-        self.n_heads = n_heads
+#     def __init__(self, n_heads):
+#         super().__init__()
+#         self.n_heads = n_heads
 
-    def forward(self, qkv):
-        """
-        Apply QKV attention.
-        :param qkv: an [N x (H * 3 * C) x T] tensor of Qs, Ks, and Vs.
-        :return: an [N x (H * C) x T] tensor after attention.
-        """
-        bs, width, length = qkv.shape
-        assert width % (3 * self.n_heads) == 0
-        ch = width // (3 * self.n_heads)
-        q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
-        scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = torch.einsum(
-            "bct,bcs->bts", q * scale, k * scale
-        )  # More stable with f16 than dividing afterwards
-        weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
-        a = torch.einsum("bts,bcs->bct", weight, v)
-        return a.reshape(bs, -1, length)
+#     def forward(self, qkv):
+#         """
+#         Apply QKV attention.
+#         :param qkv: an [N x (H * 3 * C) x T] tensor of Qs, Ks, and Vs.
+#         :return: an [N x (H * C) x T] tensor after attention.
+#         """
+#         bs, width, length = qkv.shape
+#         assert width % (3 * self.n_heads) == 0
+#         ch = width // (3 * self.n_heads)
+#         q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
+#         scale = 1 / math.sqrt(math.sqrt(ch))
+#         weight = torch.einsum(
+#             "bct,bcs->bts", q * scale, k * scale
+#         )  # More stable with f16 than dividing afterwards
+#         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
+#         a = torch.einsum("bts,bcs->bct", weight, v)
+#         return a.reshape(bs, -1, length)
 
-    @staticmethod
-    def count_flops(model, _x, y):
-        return count_flops_attn(model, _x, y)
+#     @staticmethod
+#     def count_flops(model, _x, y):
+#         return count_flops_attn(model, _x, y)
 
 
 class UNetModel(nn.Module):

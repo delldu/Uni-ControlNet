@@ -3,6 +3,7 @@ import importlib
 import numpy as np
 
 from inspect import isfunction
+import pdb
 
 
 def exists(x):
@@ -13,8 +14,6 @@ def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
-
-
 
 def count_params(model, verbose=False):
     total_params = sum(p.numel() for p in model.parameters())
@@ -30,6 +29,7 @@ def instantiate_from_config(config):
         elif config == "__is_unconditional__":
             return None
         raise KeyError("Expected key `target` to instantiate.")
+        
     return get_obj_from_str(config["target"])(**config.get("params", dict()))
 
 

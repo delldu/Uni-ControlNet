@@ -48,23 +48,35 @@ class UniControlNet(LatentDiffusion):
 
     def apply_model(self, x_noisy, t, cond, global_strength=1, *args, **kwargs):
         assert isinstance(cond, dict)
-        diffusion_model = self.model.diffusion_model
-        cond_txt = torch.cat(cond['c_crossattn'], 1)
+        # x_noisy.size() -- [1, 4, 80, 64]
+        # t -- tensor([801], device='cuda:0')
+        # cond.keys() -- ['local_control', 'c_crossattn', 'global_control']
+        # (Pdb) pp args -- ()
+        # (Pdb) pp kwargs -- {}
 
-        if self.mode in ['global', 'uni']:
+        diffusion_model = self.model.diffusion_model
+        cond_txt = torch.cat(cond['c_crossattn'], 1) # size() -- [1, 77, 768]
+
+        # cond['local_control'][0].size() -- [1, 21, 640, 512]
+        # cond['global_control'][0].size() -- [1, 768]
+
+        if self.mode in ['global', 'uni']: # True
             assert cond['global_control'][0] != None
-            global_control = self.global_adapter(cond['global_control'][0])
+            global_control = self.global_adapter(cond['global_control'][0]) # global_control.size() -- [1, 4, 768]
             cond_txt = torch.cat([cond_txt, global_strength*global_control], dim=1)
-        if self.mode in ['local', 'uni']:
+        if self.mode in ['local', 'uni']: # True
             assert cond['local_control'][0] != None
             local_control = torch.cat(cond['local_control'], 1)
+            # torch.cat(cond['local_control'], 1).size() -- [1, 21, 640, 512]
+
             local_control = self.local_adapter(x=x_noisy, timesteps=t, context=cond_txt, local_conditions=local_control)
             local_control = [c * scale for c, scale in zip(local_control, self.local_control_scales)]
         
-        if self.mode == 'global':
+        if self.mode == 'global': # False
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt)
         else:
             eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, local_control=local_control)
+        # eps.size() -- [1, 4, 80, 64]
         return eps
 
     @torch.no_grad()
