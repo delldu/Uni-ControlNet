@@ -1,11 +1,8 @@
 # pytorch_diffusion + derived encoder decoder
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
-import numpy as np
-from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
@@ -38,18 +35,6 @@ class Upsample(nn.Module):
         x = self.conv(x)
         return x
 
-class Downsample(nn.Module):
-    def __init__(self, in_channels):
-        super().__init__()
-        # no asymmetric padding in torch conv, must do it ourselves
-        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=0)
-
-    def forward(self, x):
-        pad = (0,1,0,1)
-        x = F.pad(x, pad, mode="constant", value=0)
-        x = self.conv(x)
-        return x
-
 
 class ResnetBlock(nn.Module):
     def __init__(self, *, in_channels, out_channels=None,
@@ -70,14 +55,11 @@ class ResnetBlock(nn.Module):
         else: # support torch.jit.script
             self.nin_shortcut = nn.Identity()
 
-    def forward(self, x, temb):
+    def forward(self, x):
         h = x
         h = self.norm1(h)
         h = nonlinearity(h)
         h = self.conv1(h)
-
-        if temb is not None:
-            h = h + self.temb_proj(nonlinearity(temb))[:,:,None,None]
 
         h = self.norm2(h)
         h = nonlinearity(h)
@@ -234,16 +216,8 @@ class Decoder(nn.Module):
         self.ch = ch
         self.num_resolutions = len(ch_mult)
         self.num_res_blocks = num_res_blocks
-        self.resolution = resolution
-        self.in_channels = in_channels
 
-        # compute in_ch_mult, block_in and curr_res at lowest res
-        in_ch_mult = (1,)+tuple(ch_mult)
         block_in = ch*ch_mult[self.num_resolutions-1]
-        curr_res = resolution // 2**(self.num_resolutions-1)
-        self.z_shape = (1,z_channels,curr_res,curr_res)
-        print("Working with z of shape {} = {} dimensions.".format(
-            self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in
         self.conv_in = nn.Conv2d(z_channels, block_in, kernel_size=3, stride=1, padding=1)
@@ -266,7 +240,6 @@ class Decoder(nn.Module):
             up.block = block
             if i_level != 0:
                 up.upsample = Upsample(block_in)
-                curr_res = curr_res * 2
             else:
                 up.upsample = nn.Identity()
             self.up.insert(0, up) # prepend to get consistent order
@@ -279,24 +252,21 @@ class Decoder(nn.Module):
         #assert z.shape[1:] == self.z_shape[1:]
         self.last_z_shape = z.shape
 
-        # timestep embedding
-        temb = None
-
         # z to block_in
         h = self.conv_in(z)
 
         # middle
-        h = self.mid.block_1(h, temb)
+        h = self.mid.block_1(h)
         h = self.mid.attn_1(h)
-        h = self.mid.block_2(h, temb)
+        h = self.mid.block_2(h)
 
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
             for i_block in range(self.num_res_blocks+1):
-                h = self.up[i_level].block[i_block](h, temb)
+                # h = self.up[i_level].block[i_block](h, temb)
+                h = self.up[i_level].block[i_block](h)
             if i_level != 0:
                 h = self.up[i_level].upsample(h)
-
         # end
 
         h = self.norm_out(h)

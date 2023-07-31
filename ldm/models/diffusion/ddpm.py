@@ -20,52 +20,12 @@ from models.local_adapter import LocalControlUNetModel
 import pdb
 
 class DiffusionWrapper(nn.Module):
-    '''uni_v15.yaml
-
-    unet_config:
-      target: models.local_adapter.LocalControlUNetModel
-      params:
-        image_size: 32
-        in_channels: 4
-        model_channels: 320
-        out_channels: 4
-        num_res_blocks: 2
-        attention_resolutions: [4, 2, 1]
-        channel_mult: [1, 2, 4, 4]
-        use_checkpoint: True
-        num_heads: 8
-        use_spatial_transformer: True
-        transformer_depth: 1
-        context_dim: 768
-        legacy: False
-    '''
-
     def __init__(self, version="1.5"):
         super().__init__()
         self.diffusion_model = LocalControlUNetModel(version=version)
 
 
 class DDPM(nn.Module):
-    '''uni_v15.yaml
-
-    unet_config:
-      target: models.local_adapter.LocalControlUNetModel
-      params:
-        image_size: 32
-        in_channels: 4
-        model_channels: 320
-        out_channels: 4
-        num_res_blocks: 2
-        attention_resolutions: [4, 2, 1]
-        channel_mult: [1, 2, 4, 4]
-        use_checkpoint: True
-        num_heads: 8
-        use_spatial_transformer: True
-        transformer_depth: 1
-        context_dim: 768
-        legacy: False
-    '''
-
     # classic DDPM with Gaussian diffusion, in image space
     def __init__(self,
                  version="v1.5",
@@ -84,10 +44,6 @@ class DDPM(nn.Module):
 
         self.register_schedule(beta_schedule=beta_schedule, timesteps=timesteps,
                                linear_start=1e-4, linear_end=2e-2)
-
-        # logvar = torch.full(fill_value=0.0, size=(self.num_timesteps,))
-        # self.register_buffer('logvar', logvar)
-
 
     def register_schedule(self, beta_schedule="linear", timesteps=1000,
                           linear_start=1e-4, linear_end=2e-2):

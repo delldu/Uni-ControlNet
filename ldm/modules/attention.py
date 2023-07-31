@@ -56,13 +56,13 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-def zero_module(module):
-    """
-    Zero out the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().zero_()
-    return module
+# def zero_module(module):
+#     """
+#     Zero out the parameters of a module and return it.
+#     """
+#     for p in module.parameters():
+#         p.detach().zero_()
+#     return module
 
 
 def Normalize(in_channels):
@@ -226,7 +226,8 @@ class SpatialTransformer(nn.Module):
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d])
                 for d in range(depth)]
         )
-        self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        # self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+        self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention

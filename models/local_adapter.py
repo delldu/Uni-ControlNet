@@ -4,7 +4,7 @@ import torch.nn as nn
 from ldm.modules.diffusionmodules.util import (
     conv_nd,
     linear,
-    zero_module,
+    # zero_module,
     timestep_embedding,
 )
 from ldm.modules.attention import SpatialTransformer
@@ -74,9 +74,10 @@ class LocalResBlock(nn.Module):
             nn.Identity(),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(
-                conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
-            ),
+            # zero_module(
+            #     conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
+            # ),
+            conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1),
         )
 
         if self.out_channels == channels:
@@ -134,10 +135,15 @@ class FeatureExtractor(nn.Module):
             )
         ])
         self.zero_convs = nn.ModuleList([
-            zero_module(conv_nd(dims, inject_channels[0], inject_channels[0], 3, padding=1)),
-            zero_module(conv_nd(dims, inject_channels[1], inject_channels[1], 3, padding=1)),
-            zero_module(conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1)),
-            zero_module(conv_nd(dims, inject_channels[3], inject_channels[3], 3, padding=1))
+            # zero_module(conv_nd(dims, inject_channels[0], inject_channels[0], 3, padding=1)),
+            # zero_module(conv_nd(dims, inject_channels[1], inject_channels[1], 3, padding=1)),
+            # zero_module(conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1)),
+            # zero_module(conv_nd(dims, inject_channels[3], inject_channels[3], 3, padding=1))
+
+            conv_nd(dims, inject_channels[0], inject_channels[0], 3, padding=1),
+            conv_nd(dims, inject_channels[1], inject_channels[1], 3, padding=1),
+            conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1),
+            conv_nd(dims, inject_channels[3], inject_channels[3], 3, padding=1)
         ])
     
     def forward(self, local_conditions):
@@ -254,7 +260,7 @@ class LocalAdapter(nn.Module):
                 out_ch = ch
                 self.input_blocks.append(
                     LocalTimestepEmbedSequential(
-                        Downsample(ch, True, dims=dims, out_channels=out_ch)
+                        Downsample(ch, dims=dims, out_channels=out_ch)
                     )
                 )
                 ch = out_ch
@@ -283,7 +289,8 @@ class LocalAdapter(nn.Module):
         self.middle_block_out = self.make_zero_conv(ch)
 
     def make_zero_conv(self, channels):
-        return LocalTimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
+        # return LocalTimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
+        return LocalTimestepEmbedSequential(conv_nd(self.dims, channels, channels, 1, padding=0))
 
     def forward(self, x, timesteps, context, local_conditions):
         # x.size() -- [1, 4, 80, 64

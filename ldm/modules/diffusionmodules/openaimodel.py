@@ -1,7 +1,7 @@
 from abc import abstractmethod
-import math
+# import math
 
-import numpy as np
+# import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,7 +10,7 @@ from ldm.modules.diffusionmodules.util import (
     conv_nd,
     linear,
     avg_pool_nd,
-    zero_module,
+    # zero_module,
     normalization,
     timestep_embedding,
 )
@@ -38,14 +38,12 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
 
 
 class Upsample(nn.Module):
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
+    def __init__(self, channels, dims=2, out_channels=None, padding=1):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
-        self.use_conv = use_conv
         self.dims = dims
-        if use_conv:
-            self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
+        self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
 
     def forward(self, x):
         assert x.shape[1] == self.channels
@@ -53,27 +51,20 @@ class Upsample(nn.Module):
             x = F.interpolate(x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest")
         else:
             x = F.interpolate(x, scale_factor=2.0, mode="nearest")
-        if self.use_conv:
-            x = self.conv(x)
+        x = self.conv(x)
         return x
 
 
 class Downsample(nn.Module):
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
+    def __init__(self, channels, dims=2, out_channels=None, padding=1):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
-        self.use_conv = use_conv
-        self.dims = dims
         stride = 2 if dims != 3 else (1, 2, 2)
-        if use_conv:
-            self.op = conv_nd(dims, self.channels, self.out_channels, 3, stride=stride, padding=padding)
-        else:
-            assert self.channels == self.out_channels
-            self.op = avg_pool_nd(dims, kernel_size=stride, stride=stride)
+        self.op = conv_nd(dims, self.channels, self.out_channels, 3, stride=stride, padding=padding)
 
     def forward(self, x):
-        assert x.shape[1] == self.channels
+        # assert x.shape[1] == self.channels
         return self.op(x)
     
 
@@ -108,7 +99,8 @@ class ResBlock(TimestepBlock):
             normalization(self.out_channels),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
+            # zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
+            conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1),
         )
 
         if self.out_channels == channels:
@@ -131,14 +123,14 @@ class ResBlock(TimestepBlock):
         h = self.out_layers(h)
         return self.skip_connection(x) + h
 
-def count_flops_attn(model, _x, y):
-    b, c, *spatial = y[0].shape
-    num_spatial = int(np.prod(spatial))
-    # We perform two matmuls with the same number of ops.
-    # The first computes the weight matrix, the second computes
-    # the combination of the value vectors.
-    matmul_ops = 2 * b * (num_spatial ** 2) * c
-    model.total_ops += torch.DoubleTensor([matmul_ops])
+# def count_flops_attn(model, _x, y):
+#     b, c, *spatial = y[0].shape
+#     num_spatial = int(np.prod(spatial))
+#     # We perform two matmuls with the same number of ops.
+#     # The first computes the weight matrix, the second computes
+#     # the combination of the value vectors.
+#     matmul_ops = 2 * b * (num_spatial ** 2) * c
+#     model.total_ops += torch.DoubleTensor([matmul_ops])
 
 
 class UNetModel(nn.Module):
@@ -207,7 +199,7 @@ class UNetModel(nn.Module):
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
                 out_ch = ch
-                self.input_blocks.append(TimestepEmbedSequential(Downsample(ch, True, dims=dims, out_channels=out_ch)))
+                self.input_blocks.append(TimestepEmbedSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
                 ch = out_ch
                 input_block_chans.append(ch)
                 ds *= 2
@@ -232,12 +224,13 @@ class UNetModel(nn.Module):
                     layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 if level and i == self.num_res_blocks[level]:
                     out_ch = ch
-                    layers.append(Upsample(ch, True, dims=dims, out_channels=out_ch))
+                    layers.append(Upsample(ch, dims=dims, out_channels=out_ch))
                     ds //= 2
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 
         self.out = nn.Sequential(
             normalization(ch),
             nn.SiLU(),
-            zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
+            # zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
+            conv_nd(dims, model_channels, out_channels, 3, padding=1),
         )
