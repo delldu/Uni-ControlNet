@@ -31,22 +31,18 @@ class UniControlNet(LatentDiffusion):
         use_ema: False
         mode: uni
     '''
-    def __init__(self, mode, local_control_config=None, global_control_config=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, version="v1.5"):
+        super().__init__(version=version)
         # pp mode -- 'uni'
         # local_control_config -- {'target': 'models.local_adapter.LocalAdapter' ... }
         # global_control_config -- {'target': 'models.global_adapter.GlobalAdapter' ... }
 
-        assert mode in ['local', 'global', 'uni']
-        self.mode = mode
-        if self.mode in ['local', 'uni']:
-            self.local_adapter = instantiate_from_config(local_control_config) # models.local_adapter.LocalAdapter
-            self.local_control_scales = [1.0] * 13
-        if self.mode in ['global', 'uni']:
-            self.global_adapter = instantiate_from_config(global_control_config) # models.global_adapter.GlobalAdapter
+        self.local_adapter = LocalAdapter(version=version) # instantiate_from_config(local_control_config) # models.local_adapter.LocalAdapter
+        self.local_control_scales = [1.0] * 13
+        self.global_adapter = GlobalAdapter(version=version) # instantiate_from_config(global_control_config) # models.global_adapter.GlobalAdapter
 
 
-    def apply_model(self, x_noisy, t, cond, global_strength=1, *args, **kwargs):
+    def apply_model(self, x_noisy, t, cond, global_strength=1.0):
         assert isinstance(cond, dict)
         # x_noisy.size() -- [1, 4, 80, 64]
         # t -- tensor([801], device='cuda:0')
@@ -60,22 +56,18 @@ class UniControlNet(LatentDiffusion):
         # cond['local_control'][0].size() -- [1, 21, 640, 512]
         # cond['global_control'][0].size() -- [1, 768]
 
-        if self.mode in ['global', 'uni']: # True
-            assert cond['global_control'][0] != None
-            global_control = self.global_adapter(cond['global_control'][0]) # global_control.size() -- [1, 4, 768]
-            cond_txt = torch.cat([cond_txt, global_strength*global_control], dim=1)
-        if self.mode in ['local', 'uni']: # True
-            assert cond['local_control'][0] != None
-            local_control = torch.cat(cond['local_control'], 1)
-            # torch.cat(cond['local_control'], 1).size() -- [1, 21, 640, 512]
+        assert cond['global_control'][0] != None
+        global_control = self.global_adapter(cond['global_control'][0]) # global_control.size() -- [1, 4, 768]
+        cond_txt = torch.cat([cond_txt, global_strength*global_control], dim=1)
 
-            local_control = self.local_adapter(x=x_noisy, timesteps=t, context=cond_txt, local_conditions=local_control)
-            local_control = [c * scale for c, scale in zip(local_control, self.local_control_scales)]
+        assert cond['local_control'][0] != None
+        local_control = torch.cat(cond['local_control'], 1)
+        # torch.cat(cond['local_control'], 1).size() -- [1, 21, 640, 512]
+
+        local_control = self.local_adapter(x=x_noisy, timesteps=t, context=cond_txt, local_conditions=local_control)
+        local_control = [c * scale for c, scale in zip(local_control, self.local_control_scales)]
         
-        if self.mode == 'global': # False
-            eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt)
-        else:
-            eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, local_control=local_control)
+        eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, local_control=local_control)
         # eps.size() -- [1, 4, 80, 64]
         return eps
 
@@ -88,17 +80,13 @@ class UniControlNet(LatentDiffusion):
     def low_vram_shift(self, is_diffusing):
         if is_diffusing:
             self.model = self.model.cuda()
-            if self.mode in ['local', 'uni']:
-                self.local_adapter = self.local_adapter.cuda()
-            if self.mode in ['global', 'uni']:
-                self.global_adapter = self.global_adapter.cuda()
+            self.local_adapter = self.local_adapter.cuda()
+            self.global_adapter = self.global_adapter.cuda()
             self.first_stage_model = self.first_stage_model.cpu()
             self.cond_stage_model = self.cond_stage_model.cpu()
         else:
             self.model = self.model.cpu()
-            if self.mode in ['local', 'uni']:
-                self.local_adapter = self.local_adapter.cpu()
-            if self.mode in ['global', 'uni']:
-                self.global_adapter = self.global_adapter.cpu()
+            self.local_adapter = self.local_adapter.cpu()
+            self.global_adapter = self.global_adapter.cpu()
             self.first_stage_model = self.first_stage_model.cuda()
             self.cond_stage_model = self.cond_stage_model.cuda()

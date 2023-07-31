@@ -30,8 +30,9 @@ class AutoencoderKL(torch.nn.Module):
     #       target: torch.nn.Identity
     # """
     def __init__(self,
-                 ddconfig,
-                 lossconfig,
+                 version="v1.5",
+                 # ddconfig,
+                 # lossconfig,
                  embed_dim=4,
                  monitor="val/rec_loss",
                  # ckpt_path=None,
@@ -42,18 +43,18 @@ class AutoencoderKL(torch.nn.Module):
                  # learn_logvar=False
                  ):
         super().__init__()
-        # ddconfig = {
-        #     'double_z': True, 
-        #     'z_channels': 4, 
-        #     'resolution': 256, 
-        #     'in_channels': 3, 
-        #     'out_ch': 3, 
-        #     'ch': 128, 
-        #     'ch_mult': [1, 2, 4, 4], 
-        #     'num_res_blocks': 2, 
-        #     'attn_resolutions': [], 
-        #     'dropout': 0.0
-        # }
+        ddconfig = {
+            'double_z': True, 
+            'z_channels': 4, 
+            'resolution': 256, 
+            'in_channels': 3, 
+            'out_ch': 3, 
+            'ch': 128, 
+            'ch_mult': [1, 2, 4, 4], 
+            'num_res_blocks': 2, 
+            'attn_resolutions': [], 
+            'dropout': 0.0
+        }
 
         self.encoder = Encoder(**ddconfig) # model size 130 M
         self.decoder = Decoder(**ddconfig) # model size 190 M

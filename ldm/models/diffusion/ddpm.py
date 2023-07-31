@@ -46,7 +46,8 @@ class DDPM(nn.Module):
 
     # classic DDPM with Gaussian diffusion, in image space
     def __init__(self,
-                 unet_config,
+                 version="v1.5",
+                 # unet_config,
                  timesteps=1000,
                  beta_schedule="linear",
                  ignore_keys=[],
@@ -86,7 +87,7 @@ class DDPM(nn.Module):
         self.parameterization = parameterization
         print(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
         self.cond_stage_model = None
-        self.model = DiffusionWrapper(unet_config, conditioning_key)
+        self.model = DiffusionWrapper(version=version) # unet_config, conditioning_key)
         count_params(self.model, verbose=True)
 
         self.v_posterior = v_posterior
@@ -145,25 +146,27 @@ class LatentDiffusion(DDPM):
     """main class"""
 
     def __init__(self,
-                 first_stage_config,
-                 cond_stage_config,
-                 num_timesteps_cond=1,
-                 cond_stage_key="image",
-                 cond_stage_trainable=False,
-                 # concat_mode=True,
-                 conditioning_key=None,
-                 scale_factor=0.18215,
-                 # scale_by_std=False,
-                 *args, **kwargs):
+                version="v1.5",
+                # first_stage_config,
+                # cond_stage_config,
+                num_timesteps_cond=1,
+                cond_stage_key="image",
+                cond_stage_trainable=False,
+                # concat_mode=True,
+                conditioning_key=None,
+                scale_factor=0.18215,
+                # scale_by_std=False,
+                # *args, **kwargs
+                ):
         # first_stage_config
         # {'target': 'ldm.models.autoencoder.AutoencoderKL', 'params': {'embed_dim': 4, 'monitor': 'val/rec_loss', 'ddconfig': {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}, 'lossconfig': {'target': 'torch.nn.Identity'}}}
         # (Pdb) cond_stage_config
         # {'target': 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'}
         # conditioning_key -- 'crossattn'
 
-        ignore_keys = kwargs.pop("ignore_keys", [])
+        # ignore_keys = kwargs.pop("ignore_keys", [])
 
-        super().__init__(conditioning_key=conditioning_key, *args, **kwargs)
+        super().__init__(version=version)
         # self.concat_mode = concat_mode
         # self.cond_stage_trainable = cond_stage_trainable
         # self.cond_stage_key = cond_stage_key
@@ -172,9 +175,10 @@ class LatentDiffusion(DDPM):
         #     self.scale_factor = scale_factor
         # else:
         #     self.register_buffer('scale_factor', torch.tensor(scale_factor))
+        self.version = version
         self.scale_factor = scale_factor
-        self.instantiate_first_stage(first_stage_config)
-        self.instantiate_cond_stage(cond_stage_config)
+        self.instantiate_first_stage()
+        self.instantiate_cond_stage()
 
 
     def register_schedule(self,
@@ -182,18 +186,17 @@ class LatentDiffusion(DDPM):
                           linear_start=1e-4, linear_end=2e-2):
         super().register_schedule(beta_schedule, timesteps, linear_start, linear_end)
 
-    def instantiate_first_stage(self, config):
-        model = instantiate_from_config(config)
+    def instantiate_first_stage(self):
+        model = AutoencoderKL(version=self.version) #instantiate_from_config(config)
         self.first_stage_model = model.eval()
         for param in self.first_stage_model.parameters():
             param.requires_grad = False
 
-    def instantiate_cond_stage(self, config):
-        model = instantiate_from_config(config)
+    def instantiate_cond_stage(self):
+        model = FrozenCLIPEmbedder() # instantiate_from_config(config)
         self.cond_stage_model = model.eval()
         for param in self.cond_stage_model.parameters():
             param.requires_grad = False
-
 
     def get_learned_conditioning(self, c):
         # pdb.set_trace()
@@ -232,8 +235,8 @@ class DiffusionWrapper(nn.Module):
         legacy: False
     '''
 
-    def __init__(self, unet_config, conditioning_key='crossattn'):
+    def __init__(self, version="1.5"): # unet_config, conditioning_key='crossattn'):
         super().__init__()
-        self.diffusion_model = instantiate_from_config(unet_config) # models.local_adapter.LocalControlUNetModel
-        self.conditioning_key = conditioning_key # 'crossattn'
-        assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm', 'hybrid-adm', 'crossattn-adm']
+        self.diffusion_model = LocalControlUNetModel(version=version) #instantiate_from_config(unet_config) # models.local_adapter.LocalControlUNetModel
+        # self.conditioning_key = conditioning_key # 'crossattn'
+        # assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm', 'hybrid-adm', 'crossattn-adm']

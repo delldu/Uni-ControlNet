@@ -12,7 +12,7 @@ class GlobalAdapter(nn.Module):
         channel_mult: [2, 4]
     '''
 
-    def __init__(self, in_dim=768, channel_mult=[2, 4]):
+    def __init__(self, version="v1.5", in_dim=768, channel_mult=[2, 4]):
         super().__init__()
         dim_out1, mult1 = in_dim*channel_mult[0], channel_mult[0]*2
         dim_out2, mult2 = in_dim*channel_mult[1], channel_mult[1]*2//channel_mult[0]

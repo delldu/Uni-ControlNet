@@ -39,7 +39,7 @@ apply_canny = CannyDetector()
 # apply_content = ContentDetector()
 
 
-model = create_model('./configs/uni_v15.yaml').cpu()
+model = create_model("v1.5").cpu() # './configs/uni_v15.yaml'
 # model -- models.uni_controlnet.UniControlNet
 
 # model.model -- ldm.models.diffusion.ddpm.DiffusionWrapper

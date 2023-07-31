@@ -259,6 +259,7 @@ class UNetModel(nn.Module):
     '''
     def __init__(
         self,
+        version="v1.5",
         image_size=32,
         in_channels=4,
         model_channels=320,
@@ -266,7 +267,7 @@ class UNetModel(nn.Module):
         num_res_blocks=2,
         attention_resolutions=[4, 2, 1],
         dropout=0,
-        channel_mult=(1, 2, 4, 8),
+        channel_mult=(1, 2, 4, 4),
         dims=2,
         use_checkpoint=True,
         num_heads=8,
@@ -276,7 +277,6 @@ class UNetModel(nn.Module):
         legacy=False,
     ):
         super().__init__()
-
 
         self.model_channels = model_channels
         # self.out_channels = out_channels
