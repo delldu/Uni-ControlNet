@@ -56,15 +56,6 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-# def zero_module(module):
-#     """
-#     Zero out the parameters of a module and return it.
-#     """
-#     for p in module.parameters():
-#         p.detach().zero_()
-#     return module
-
-
 def Normalize(in_channels):
     return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
@@ -216,11 +207,9 @@ class SpatialTransformer(nn.Module):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
             context_dim = [context_dim]
-        self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)
         self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
-
 
         self.transformer_blocks = nn.ModuleList(
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d])
