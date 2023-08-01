@@ -118,7 +118,7 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
         else:
             seg_detected_map = np.zeros((H, W, C)).astype(np.uint8)
         if content_image is not None:
-            content_emb = apply_content(content_image)
+            content_emb = apply_content(content_image) # clip.image_encode(content_image), xxxx1111
         else:
             content_emb = np.zeros((768))
 
@@ -135,16 +135,26 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
         local_control = torch.from_numpy(detected_maps.copy()).float().cuda() / 255.0
         local_control = torch.stack([local_control for _ in range(num_samples)], dim=0)
         local_control = einops.rearrange(local_control, 'b h w c -> b c h w').clone()
+
+
         global_control = torch.from_numpy(content_emb.copy()).float().cuda().clone()
         global_control = torch.stack([global_control for _ in range(num_samples)], dim=0)
 
         if config.save_memory:
             model.low_vram_shift(is_diffusing=False)
 
+        # get_learned_conditioning -- clip.text_encode(text), xxxx1111
         uc_local_control = local_control
         uc_global_control = torch.zeros_like(global_control)
-        cond = {"local_control": [local_control], "c_crossattn": [model.get_learned_conditioning([prompt + ', ' + a_prompt] * num_samples)], 'global_control': [global_control]}
-        un_cond = {"local_control": [uc_local_control], "c_crossattn": [model.get_learned_conditioning([n_prompt] * num_samples)], 'global_control': [uc_global_control]}
+        cond = {"local_control": [local_control], 
+                "c_crossattn": [model.get_learned_conditioning([prompt + ', ' + a_prompt] * num_samples)], 
+                'global_control': [global_control]
+            }
+        un_cond = {"local_control": [uc_local_control], 
+                "c_crossattn": [model.get_learned_conditioning([n_prompt] * num_samples)], 
+                'global_control': [uc_global_control]
+            }
+
         shape = (4, H // 8, W // 8)
 
         if config.save_memory:
@@ -153,13 +163,13 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
         model.control_scales = [strength] * 13
         samples, _ = ddim_sampler.sample(ddim_steps, num_samples,
                                                      shape, cond, eta=eta,
-                                                     unconditional_guidance_scale=scale,
-                                                     unconditional_conditioning=un_cond, global_strength=global_strength)
+                                                     uc_guide_scale=scale,
+                                                     uc_condition=un_cond, global_strength=global_strength)
 
         if config.save_memory:
             model.low_vram_shift(is_diffusing=False)
 
-        x_samples = model.decode_first_stage(samples)
+        x_samples = model.decode_first_stage(samples) # xxxx1111
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
         results = [x_samples[i] for i in range(num_samples)]
 

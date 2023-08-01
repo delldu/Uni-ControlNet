@@ -35,6 +35,7 @@ class UniControlNet(LatentDiffusion):
         self.global_adapter = GlobalAdapter(version=version)
 
 
+    # xxxx1111
     def apply_model(self, x_noisy, t, cond, global_strength=1.0):
         assert isinstance(cond, dict)
         # x_noisy.size() -- [1, 4, 80, 64]
@@ -51,7 +52,8 @@ class UniControlNet(LatentDiffusion):
 
         assert cond['global_control'][0] != None
         global_control = self.global_adapter(cond['global_control'][0]) # global_control.size() -- [1, 4, 768]
-        cond_txt = torch.cat([cond_txt, global_strength*global_control], dim=1)
+        cond_txt = torch.cat([cond_txt, global_strength * global_control], dim=1)
+
 
         assert cond['local_control'][0] != None
         local_control = torch.cat(cond['local_control'], 1)
@@ -71,14 +73,16 @@ class UniControlNet(LatentDiffusion):
 
     def low_vram_shift(self, is_diffusing):
         if is_diffusing:
+            # sample ...
             self.model = self.model.cuda()
             self.local_adapter = self.local_adapter.cuda()
             self.global_adapter = self.global_adapter.cuda()
             self.first_stage_model = self.first_stage_model.cpu()
             self.cond_stage_model = self.cond_stage_model.cpu()
         else:
+            # clip ... , image.decode
             self.model = self.model.cpu()
             self.local_adapter = self.local_adapter.cpu()
             self.global_adapter = self.global_adapter.cpu()
-            self.first_stage_model = self.first_stage_model.cuda()
+            self.first_stage_model = self.first_stage_model.cuda() # image.decode
             self.cond_stage_model = self.cond_stage_model.cuda()

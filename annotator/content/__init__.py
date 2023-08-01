@@ -5,7 +5,7 @@ import torch
 from transformers import AutoProcessor, CLIPModel
 
 from annotator.util import annotator_ckpts_path
-
+import pdb
 
 class ContentDetector:
     def __init__(self):
@@ -14,6 +14,7 @@ class ContentDetector:
 
         self.model = CLIPModel.from_pretrained(model_name, cache_dir=annotator_ckpts_path).cuda().eval()
         self.processor = AutoProcessor.from_pretrained(model_name, cache_dir=annotator_ckpts_path)
+        pdb.set_trace()
 
     def __call__(self, img):
         assert img.ndim == 3
@@ -22,4 +23,5 @@ class ContentDetector:
             inputs = self.processor(images=img, return_tensors="pt").to('cuda')
             image_features = self.model.get_image_features(**inputs)
             image_feature = image_features[0].detach().cpu().numpy()
+
         return image_feature
