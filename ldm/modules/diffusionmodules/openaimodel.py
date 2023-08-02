@@ -1,5 +1,3 @@
-from abc import abstractmethod
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,13 +10,6 @@ from ldm.modules.diffusionmodules.util import (
 )
 from ldm.modules.attention import SpatialTransformer
 import pdb
-
-class TimestepBlock(nn.Module):
-    @abstractmethod
-    def forward(self, x, emb):
-        """
-        Apply the module to `x` given `emb` timestep embeddings.
-        """
 
 
 class TimestepEmbedSequential(nn.Sequential):
@@ -48,7 +39,7 @@ class Upsample(nn.Module):
         self.out_channels = out_channels or channels
         self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
 
-    def forward(self, x, emb=None, context=None, local_features=None): # xxxx8888
+    def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
         assert x.shape[1] == self.channels
         x = F.interpolate(x, scale_factor=2.0, mode="nearest")
         x = self.conv(x)
@@ -67,15 +58,8 @@ class Downsample(nn.Module):
         return self.op(x)
     
 
-class ResBlock(TimestepBlock):
-    def __init__(
-        self,
-        channels,
-        emb_channels,
-        dropout,
-        out_channels=None,
-        dims=2,
-    ):
+class ResBlock(nn.Module):
+    def __init__(self, channels, emb_channels, dropout, out_channels=None, dims=2):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -103,7 +87,7 @@ class ResBlock(TimestepBlock):
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
 
-    def forward(self, x, emb, context=None, local_features=None): # xxxx8888
+    def forward(self, x, emb, context=None, local_features=None): # for TimestepEmbedSequential
         h = self.in_layers(x)
         emb_out = self.emb_layers(emb)
         while len(emb_out.shape) < len(h.shape):

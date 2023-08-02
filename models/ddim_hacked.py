@@ -64,10 +64,7 @@ class DDIMSampler(object):
         return samples, intermediates
 
     @torch.no_grad()
-    def ddim_sampling(self, condition, shape,
-                      log_every_t=100,
-                      uc_guide_scale=7.5, uc_condition=None, 
-                      global_strength=1.0):
+    def ddim_sampling(self, condition, shape, log_every_t=100, uc_guide_scale=7.5, uc_condition=None, global_strength=1.0):
 
         device = self.model.betas.device
         b = shape[0]
@@ -97,9 +94,7 @@ class DDIMSampler(object):
         return noise, intermediates
 
     @torch.no_grad()
-    def p_sample_ddim(self, x, condition, t, index, 
-                      uc_guide_scale=7.5, uc_condition=None,
-                      global_strength=1.0):
+    def p_sample_ddim(self, x, condition, t, index, uc_guide_scale=7.5, uc_condition=None, global_strength=1.0):
         # here x is noise
         b, *_, device = *x.shape, x.device
         model_t = self.model.apply_model(x, t, condition, global_strength) # xxxx1111

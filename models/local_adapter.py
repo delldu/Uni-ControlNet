@@ -8,28 +8,7 @@ from ldm.modules.diffusionmodules.util import (
 )
 from ldm.modules.attention import SpatialTransformer
 from ldm.modules.diffusionmodules.openaimodel import TimestepEmbedSequential, NormalEmbededSequential, ResBlock, Downsample
-# TimestepBlock, 
 import pdb
-
-# class LocalTimestepEmbedSequential(nn.Sequential):
-#     def forward(self, x, emb, context=None, local_features=None):
-#         for layer in self:
-#             # if isinstance(layer, TimestepBlock): # xxxx8888
-#             #     x = layer(x, emb)
-#             # elif isinstance(layer, SpatialTransformer):
-#             #     x = layer(x, context)
-#             # elif isinstance(layer, LocalResBlock):
-#             #     x = layer(x, emb, local_features)
-#             # else:
-#             #     x = layer(x)
-#             x = layer(x, emb, context, local_features)
-#         return x
-
-# class LocalNormalSequential(nn.Sequential):
-#     def forward(self, x, emb, context=None, local_features=None):
-#         for layer in self:
-#             x = layer(x)
-#         return x
 
 class FDN(nn.Module):
     def __init__(self, norm_nc, label_nc):
@@ -50,15 +29,7 @@ class FDN(nn.Module):
 
 
 class LocalResBlock(nn.Module):
-    def __init__(
-        self,
-        channels,
-        emb_channels,
-        dropout,
-        out_channels=None,
-        dims=2,
-        inject_channels=None
-    ):
+    def __init__(self, channels, emb_channels, dropout, out_channels=None, dims=2, inject_channels=None):
         super().__init__()
         self.channels = channels
         self.emb_channels = emb_channels
@@ -88,7 +59,7 @@ class LocalResBlock(nn.Module):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb, context=None, local_conditions=None): # xxxx8888
+    def forward(self, x, emb, context=None, local_conditions=None): # for TimestepEmbedSequential
         # ==> pdb.set_trace()
         h = self.norm_in(x, local_conditions)
         h = self.in_layers(h)
@@ -145,12 +116,12 @@ class FeatureExtractor(nn.Module):
         ])
     
     def forward(self, local_conditions):
-        local_features = self.pre_extractor(local_conditions) # xxxx8888
+        local_features = self.pre_extractor(local_conditions)
         assert len(self.extractors) == len(self.zero_convs)
         
         output_features = []
         for idx in range(len(self.extractors)):
-            local_features = self.extractors[idx](local_features) # xxxx8888
+            local_features = self.extractors[idx](local_features)
             output_features.append(self.zero_convs[idx](local_features))
         return output_features
 
@@ -175,8 +146,7 @@ class LocalAdapter(nn.Module):
         context_dim: 768
         legacy: False
     '''
-    def __init__(
-            self,
+    def __init__(self,
             version="v1.5",
             in_channels=4,
             model_channels=320,

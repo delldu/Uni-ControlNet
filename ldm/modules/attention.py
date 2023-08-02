@@ -212,7 +212,7 @@ class SpatialTransformer(nn.Module):
         )
         self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, x, emb=None, context=None, local_features=None): # xxxx8888
+    def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)

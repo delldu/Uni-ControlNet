@@ -14,8 +14,7 @@ class FrozenCLIPEmbedder(nn.Module):
     LAYERS = [
         "last",
     ]
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,
-                 freeze=True, layer="last"):  # clip-vit-base-patch32
+    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77, freeze=True, layer="last"):
         super().__init__()
         assert layer in self.LAYERS
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
