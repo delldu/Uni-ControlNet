@@ -34,8 +34,8 @@ class TimestepEmbedSequential(nn.Sequential):
             x = layer(x, emb, context, local_features)
         return x
 
-class NormalSequential(nn.Sequential):
-    def forward(self, x, emb, context=None):
+class NormalEmbededSequential(nn.Sequential):
+    def forward(self, x, emb=None, context=None, local_features=None):
         for layer in self:
             x = layer(x)
         return x
@@ -160,7 +160,7 @@ class LocalControlUNetModel(nn.Module):
 
         self.input_blocks = nn.ModuleList(
             [
-                NormalSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))
+                NormalEmbededSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))
             ]
         )
         input_block_chans = [model_channels]
@@ -179,7 +179,7 @@ class LocalControlUNetModel(nn.Module):
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
                 out_ch = ch
-                self.input_blocks.append(NormalSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
+                self.input_blocks.append(NormalEmbededSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
                 ch = out_ch
                 input_block_chans.append(ch)
                 ds *= 2
