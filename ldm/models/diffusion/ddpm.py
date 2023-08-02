@@ -15,7 +15,7 @@ from ldm.util import count_params
 from ldm.models.autoencoder import AutoencoderKL
 from ldm.modules.diffusionmodules.util import make_beta_schedule
 from ldm.modules.encoders.modules import FrozenCLIPEmbedder
-from models.local_adapter import LocalControlUNetModel
+from ldm.modules.diffusionmodules.openaimodel import LocalControlUNetModel
 
 import pdb
 

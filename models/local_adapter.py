@@ -4,26 +4,31 @@ import torch.nn as nn
 from ldm.modules.diffusionmodules.util import (
     conv_nd,
     linear,
-    # zero_module,
     timestep_embedding,
 )
 from ldm.modules.attention import SpatialTransformer
-from ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepBlock, TimestepEmbedSequential, ResBlock, Downsample
+from ldm.modules.diffusionmodules.openaimodel import TimestepBlock, TimestepEmbedSequential, ResBlock, Downsample
 import pdb
 
 class LocalTimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, x, emb, context=None, local_features=None):
         for layer in self:
-            if isinstance(layer, TimestepBlock): # xxxx8888
-                x = layer(x, emb)
-            elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context)
-            elif isinstance(layer, LocalResBlock):
-                x = layer(x, emb, local_features)
-            else:
-                x = layer(x)
+            # if isinstance(layer, TimestepBlock): # xxxx8888
+            #     x = layer(x, emb)
+            # elif isinstance(layer, SpatialTransformer):
+            #     x = layer(x, context)
+            # elif isinstance(layer, LocalResBlock):
+            #     x = layer(x, emb, local_features)
+            # else:
+            #     x = layer(x)
+            x = layer(x, emb, context, local_features)
         return x
 
+class LocalNormalSequential(nn.Sequential):
+    def forward(self, x, emb, context=None, local_features=None):
+        for layer in self:
+            x = layer(x)
+        return x
 
 class FDN(nn.Module):
     def __init__(self, norm_nc, label_nc):
@@ -74,9 +79,6 @@ class LocalResBlock(nn.Module):
             nn.Identity(),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            # zero_module(
-            #     conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
-            # ),
             conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1),
         )
 
@@ -85,7 +87,7 @@ class LocalResBlock(nn.Module):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb, local_conditions):
+    def forward(self, x, emb, context=None, local_conditions=None): # xxxx8888
         # ==> pdb.set_trace()
         h = self.norm_in(x, local_conditions)
         h = self.in_layers(h)
@@ -104,7 +106,7 @@ class LocalResBlock(nn.Module):
 class FeatureExtractor(nn.Module):
     def __init__(self, local_channels, inject_channels, dims=2):
         super().__init__()
-        self.pre_extractor = LocalTimestepEmbedSequential(
+        self.pre_extractor = LocalNormalSequential(
             conv_nd(dims, local_channels, 32, 3, padding=1),
             nn.SiLU(),
             conv_nd(dims, 32, 64, 3, padding=1, stride=2),
@@ -117,29 +119,24 @@ class FeatureExtractor(nn.Module):
             nn.SiLU(),
         )
         self.extractors = nn.ModuleList([
-            LocalTimestepEmbedSequential(
+            LocalNormalSequential(
                 conv_nd(dims, 128, inject_channels[0], 3, padding=1, stride=2),
                 nn.SiLU()
             ),
-            LocalTimestepEmbedSequential(
+            LocalNormalSequential(
                 conv_nd(dims, inject_channels[0], inject_channels[1], 3, padding=1, stride=2),
                 nn.SiLU()
             ),
-            LocalTimestepEmbedSequential(
+            LocalNormalSequential(
                 conv_nd(dims, inject_channels[1], inject_channels[2], 3, padding=1, stride=2),
                 nn.SiLU()
             ),
-            LocalTimestepEmbedSequential(
+            LocalNormalSequential(
                 conv_nd(dims, inject_channels[2], inject_channels[3], 3, padding=1, stride=2),
                 nn.SiLU()
             )
         ])
         self.zero_convs = nn.ModuleList([
-            # zero_module(conv_nd(dims, inject_channels[0], inject_channels[0], 3, padding=1)),
-            # zero_module(conv_nd(dims, inject_channels[1], inject_channels[1], 3, padding=1)),
-            # zero_module(conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1)),
-            # zero_module(conv_nd(dims, inject_channels[3], inject_channels[3], 3, padding=1))
-
             conv_nd(dims, inject_channels[0], inject_channels[0], 3, padding=1),
             conv_nd(dims, inject_channels[1], inject_channels[1], 3, padding=1),
             conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1),
@@ -195,13 +192,10 @@ class LocalAdapter(nn.Module):
             context_dim=768,  # custom transformer support
     ):
         super().__init__()
-
-        self.dims = dims
         self.model_channels = model_channels
         self.inject_layers = inject_layers
-        self.num_res_blocks = len(channel_mult) * [num_res_blocks]
-        self.num_heads = num_heads
 
+        num_res_blocks = len(channel_mult) * [num_res_blocks]
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
             linear(model_channels, time_embed_dim),
@@ -211,86 +205,54 @@ class LocalAdapter(nn.Module):
 
         self.feature_extractor = FeatureExtractor(local_channels, inject_channels)
         self.input_blocks = nn.ModuleList(
-            [
-                LocalTimestepEmbedSequential(
-                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
-                )
-            ]
+            [LocalNormalSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
         )
-        self.zero_convs = nn.ModuleList([self.make_zero_conv(model_channels)])
+        self.zero_convs = nn.ModuleList(
+            [LocalNormalSequential(conv_nd(dims, model_channels, model_channels, 1, padding=0))]
+        )
 
         input_block_chans = [model_channels]
         ch = model_channels
         ds = 1
         for level, mult in enumerate(channel_mult):
-            for nr in range(self.num_res_blocks[level]):
+            for nr in range(num_res_blocks[level]):
                 if (1 + 3*level + nr) in self.inject_layers:
                     layers = [
-                        LocalResBlock(
-                            ch,
-                            time_embed_dim,
-                            dropout,
-                            out_channels=mult * model_channels,
-                            dims=dims,
+                        LocalResBlock(ch, time_embed_dim, dropout, out_channels=mult * model_channels, dims=dims,
                             inject_channels=inject_channels[level]
                         )
                     ]
                 else:
                     layers = [
-                        ResBlock(
-                            ch,
-                            time_embed_dim,
-                            dropout,
-                            out_channels=mult * model_channels,
-                            dims=dims,
-                        )
+                        ResBlock(ch, time_embed_dim, dropout, out_channels=mult * model_channels, dims=dims)
                     ]
                 ch = mult * model_channels
                 if ds in attention_resolutions:
                     dim_head = ch // num_heads
                     layers.append(
-                        SpatialTransformer(
-                            ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-                        )
+                        SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim)
                     )
                 self.input_blocks.append(LocalTimestepEmbedSequential(*layers))
-                self.zero_convs.append(self.make_zero_conv(ch))
+                self.zero_convs.append(LocalNormalSequential(conv_nd(dims, ch, ch, 1, padding=0)))
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
                 out_ch = ch
                 self.input_blocks.append(
-                    LocalTimestepEmbedSequential(
-                        Downsample(ch, dims=dims, out_channels=out_ch)
-                    )
+                    LocalNormalSequential(Downsample(ch, dims=dims, out_channels=out_ch))
                 )
                 ch = out_ch
                 input_block_chans.append(ch)
-                self.zero_convs.append(self.make_zero_conv(ch))
+                self.zero_convs.append(LocalNormalSequential(conv_nd(dims, ch, ch, 1, padding=0)))
                 ds *= 2
 
         dim_head = ch // num_heads
         self.middle_block = LocalTimestepEmbedSequential(
-            ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
-                dims=dims,
-            ),
-            SpatialTransformer(
-                ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim,
-            ),
-            ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
-                dims=dims,
-            ),
+            ResBlock(ch, time_embed_dim, dropout, dims=dims, ),
+            SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim, ),
+            ResBlock(ch, time_embed_dim, dropout, dims=dims, ),
         )
-        self.middle_block_out = self.make_zero_conv(ch)
-
-    def make_zero_conv(self, channels):
-        # return LocalTimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
-        return LocalTimestepEmbedSequential(conv_nd(self.dims, channels, channels, 1, padding=0))
+        self.middle_block_out = LocalNormalSequential(conv_nd(dims, ch, ch, 1, padding=0))
+        # pdb.set_trace()
 
     def forward(self, x, timesteps, context, local_conditions):
         # x.size() -- [1, 4, 80, 64
@@ -317,27 +279,3 @@ class LocalAdapter(nn.Module):
         return outs
 
 
-class LocalControlUNetModel(UNetModel):
-    def forward(self, x, timesteps=None, context=None, local_control=None):
-        # x.size() -- [1, 4, 80, 64]
-        # context.size() -- [1, 81, 768]
-        # len(local_control) -- 13
-        # local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]
-
-        hs = []
-        with torch.no_grad():
-            t_emb = timestep_embedding(timesteps, self.model_channels) # self.model_channels -- 320
-            emb = self.time_embed(t_emb)
-            h = x
-            for module in self.input_blocks:
-                h = module(h, emb, context)
-                hs.append(h)
-            h = self.middle_block(h, emb, context)
-
-        h += local_control.pop()
-
-        for module in self.output_blocks:
-            h = torch.cat([h, hs.pop() + local_control.pop()], dim=1)
-            h = module(h, emb, context)
-
-        return self.out(h)

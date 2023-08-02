@@ -21,15 +21,23 @@ class TimestepBlock(nn.Module):
         """
 
 
-class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+class TimestepEmbedSequential(nn.Sequential):
+    def forward(self, x, emb=None, context=None, local_features=None):
+        # for layer in self:
+        #     if isinstance(layer, TimestepBlock): # xxxx8888
+        #         x = layer(x, emb, context)
+        #     elif isinstance(layer, SpatialTransformer):
+        #         x = layer(x, context, context)
+        #     else:
+        #         x = layer(x)
+        for layer in self:
+            x = layer(x, emb, context, local_features)
+        return x
+
+class NormalSequential(nn.Sequential):
     def forward(self, x, emb, context=None):
         for layer in self:
-            if isinstance(layer, TimestepBlock): # xxxx8888
-                x = layer(x, emb)
-            elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context)
-            else:
-                x = layer(x)
+            x = layer(x)
         return x
 
 
@@ -38,15 +46,11 @@ class Upsample(nn.Module):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
-        self.dims = dims
         self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
 
-    def forward(self, x):
+    def forward(self, x, emb=None, context=None, local_features=None): # xxxx8888
         assert x.shape[1] == self.channels
-        if self.dims == 3:
-            x = F.interpolate(x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest")
-        else:
-            x = F.interpolate(x, scale_factor=2.0, mode="nearest")
+        x = F.interpolate(x, scale_factor=2.0, mode="nearest")
         x = self.conv(x)
         return x
 
@@ -60,7 +64,6 @@ class Downsample(nn.Module):
         self.op = conv_nd(dims, self.channels, self.out_channels, 3, stride=stride, padding=padding)
 
     def forward(self, x):
-        # assert x.shape[1] == self.channels
         return self.op(x)
     
 
@@ -71,15 +74,11 @@ class ResBlock(TimestepBlock):
         emb_channels,
         dropout,
         out_channels=None,
-        use_conv=False,
         dims=2,
     ):
         super().__init__()
         self.channels = channels
-        self.emb_channels = emb_channels
-        self.dropout = dropout
         self.out_channels = out_channels or channels
-        self.use_conv = use_conv
 
         self.in_layers = nn.Sequential(
             normalization(channels),
@@ -95,23 +94,18 @@ class ResBlock(TimestepBlock):
             normalization(self.out_channels),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            # zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
             conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1),
         )
 
         if self.out_channels == channels:
             self.skip_connection = nn.Identity()
-        elif use_conv:
-            self.skip_connection = conv_nd(
-                dims, channels, self.out_channels, 3, padding=1
-            )
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
 
-    def forward(self, x, emb):
+    def forward(self, x, emb, context=None, local_features=None): # xxxx8888
         h = self.in_layers(x)
-        emb_out = self.emb_layers(emb) # .type(h.dtype)
+        emb_out = self.emb_layers(emb)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
 
@@ -119,17 +113,7 @@ class ResBlock(TimestepBlock):
         h = self.out_layers(h)
         return self.skip_connection(x) + h
 
-# def count_flops_attn(model, _x, y):
-#     b, c, *spatial = y[0].shape
-#     num_spatial = int(np.prod(spatial))
-#     # We perform two matmuls with the same number of ops.
-#     # The first computes the weight matrix, the second computes
-#     # the combination of the value vectors.
-#     matmul_ops = 2 * b * (num_spatial ** 2) * c
-#     model.total_ops += torch.DoubleTensor([matmul_ops])
-
-
-class UNetModel(nn.Module):
+class LocalControlUNetModel(nn.Module):
     '''uni_v15.yaml
 
       target: models.local_adapter.LocalControlUNetModel
@@ -165,7 +149,7 @@ class UNetModel(nn.Module):
     ):
         super().__init__()
         self.model_channels = model_channels
-        self.num_res_blocks = len(channel_mult) * [num_res_blocks]
+        self.num_res_blocks = len(channel_mult) * [num_res_blocks] # [2, 2, 2, 2]
         
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -176,7 +160,7 @@ class UNetModel(nn.Module):
 
         self.input_blocks = nn.ModuleList(
             [
-                TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))
+                NormalSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))
             ]
         )
         input_block_chans = [model_channels]
@@ -195,11 +179,11 @@ class UNetModel(nn.Module):
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
                 out_ch = ch
-                self.input_blocks.append(TimestepEmbedSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
+                self.input_blocks.append(NormalSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
                 ch = out_ch
                 input_block_chans.append(ch)
                 ds *= 2
-
+            # ==> layers -- [ResBlock, SpatialTransformer, ...]
         dim_head = ch // num_heads
         self.middle_block = TimestepEmbedSequential(
             ResBlock(ch, time_embed_dim, dropout, dims=dims),
@@ -208,25 +192,50 @@ class UNetModel(nn.Module):
         )
 
         self.output_blocks = nn.ModuleList([])
-        for level, mult in list(enumerate(channel_mult))[::-1]:
-            for i in range(self.num_res_blocks[level] + 1):
+        for level, mult in list(enumerate(channel_mult))[::-1]: # channel_mult -- (1, 2, 4, 4)
+            for i in range(self.num_res_blocks[level] + 1): # self.num_res_blocks -- [2, 2, 2, 2] ==> i in range(0, 3)
                 ich = input_block_chans.pop()
                 layers = [
                     ResBlock(ch + ich, time_embed_dim, dropout, out_channels=model_channels * mult, dims=dims)
                 ]
                 ch = model_channels * mult
-                if ds in attention_resolutions:
+                if ds in attention_resolutions: # [4, 2, 1]
                     dim_head = ch // num_heads
                     layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 if level and i == self.num_res_blocks[level]:
                     out_ch = ch
                     layers.append(Upsample(ch, dims=dims, out_channels=out_ch))
                     ds //= 2
+
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 
         self.out = nn.Sequential(
             normalization(ch),
             nn.SiLU(),
-            # zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
             conv_nd(dims, model_channels, out_channels, 3, padding=1),
         )
+
+
+    def forward(self, x, timesteps=None, context=None, local_control=None):
+        # x.size() -- [1, 4, 80, 64], sample noise ?
+        # context.size() -- [1, 81, 768], global_control, comes from CLIP("ViT-L-14")
+        # len(local_control) -- 13
+        # local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]
+
+        hs = []
+        with torch.no_grad():
+            t_emb = timestep_embedding(timesteps, self.model_channels) # self.model_channels -- 320
+            emb = self.time_embed(t_emb)
+            h = x
+            for module in self.input_blocks:
+                h = module(h, emb, context)
+                hs.append(h)
+            h = self.middle_block(h, emb, context)
+
+        h += local_control.pop()
+
+        for module in self.output_blocks:
+            h = torch.cat([h, hs.pop() + local_control.pop()], dim=1)
+            h = module(h, emb, context)
+
+        return self.out(h)

@@ -47,6 +47,7 @@ model = create_model("v1.5").cpu()
 
 ## model.first_stage_model -- ldm.models.autoencoder.AutoencoderKL
 ## model.cond_stage_model -- ldm.modules.encoders.modules.FrozenCLIPEmbedder
+pdb.set_trace()
 
 model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
 model = model.cuda()
