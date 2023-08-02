@@ -6,7 +6,6 @@ import pdb
 def get_state_dict(d):
     return d.get('state_dict', d)
 
-
 def load_state_dict(ckpt_path, location='cpu'):
     _, extension = os.path.splitext(ckpt_path)
     if extension.lower() == ".safetensors":
@@ -17,6 +16,7 @@ def load_state_dict(ckpt_path, location='cpu'):
     state_dict = get_state_dict(state_dict)
 
     remove_keys = [
+        "alphas_cumprod_prev",
         "sqrt_alphas_cumprod",
         "sqrt_one_minus_alphas_cumprod",
         "sqrt_recip_alphas_cumprod",
@@ -35,8 +35,16 @@ def load_state_dict(ckpt_path, location='cpu'):
     for key in remove_keys:
         del state_dict[key]
 
+    # model.diffusion_model. --> diffusion_model.
+    new_state_dict = {}
+    for n, p in state_dict.items():
+        if n.startswith("model.diffusion_model."):
+            n = n.replace("model.diffusion_model.", "diffusion_model.")
+        new_state_dict[n] = p
+
+
     print(f'Loaded state_dict from [{ckpt_path}]')
-    return state_dict
+    return new_state_dict
 
 
 def create_model(version):

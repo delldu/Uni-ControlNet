@@ -14,7 +14,7 @@ import pdb
 class LocalTimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, x, emb, context=None, local_features=None):
         for layer in self:
-            if isinstance(layer, TimestepBlock):
+            if isinstance(layer, TimestepBlock): # xxxx8888
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
                 x = layer(x, context)

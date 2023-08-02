@@ -6,7 +6,7 @@ import torch
 
 from utils.share import *
 from models.util import create_model
-
+import pdb
 
 def init_local(sd_weights_path, config_path, output_path):
     pretrained_weights = torch.load(sd_weights_path)
@@ -17,6 +17,7 @@ def init_local(sd_weights_path, config_path, output_path):
     target_dict = {}
     for sk in scratch_dict.keys():
         if sk.replace('local_adapter.', 'model.diffusion_model.') in pretrained_weights.keys():
+            pdb.set_trace()
             target_dict[sk] = pretrained_weights[sk.replace('local_adapter.', 'model.diffusion_model.')].clone()
         else:
             target_dict[sk] = scratch_dict[sk].clone()

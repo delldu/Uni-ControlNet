@@ -14,28 +14,10 @@ import torch.nn as nn
 import numpy as np
 
 
-def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2, cosine_s=8e-3):
-    if schedule == "linear":
-        betas = (
-                torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_timestep, dtype=torch.float64) ** 2
-        )
-
-    elif schedule == "cosine":
-        timesteps = (
-                torch.arange(n_timestep + 1, dtype=torch.float64) / n_timestep + cosine_s
-        )
-        alphas = timesteps / (1 + cosine_s) * np.pi / 2
-        alphas = torch.cos(alphas).pow(2)
-        alphas = alphas / alphas[0]
-        betas = 1 - alphas[1:] / alphas[:-1]
-        betas = np.clip(betas, a_min=0, a_max=0.999)
-
-    elif schedule == "sqrt_linear":
-        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64)
-    elif schedule == "sqrt":
-        betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64) ** 0.5
-    else:
-        raise ValueError(f"schedule '{schedule}' unknown.")
+def make_beta_schedule(n_timestep, linear_start=1e-4, linear_end=2e-2):
+    betas = (
+            torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_timestep, dtype=torch.float64) ** 2
+    )
     return betas.numpy()
 
 def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta: float, verbose: bool=True):
@@ -51,14 +33,9 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta: float, verbose
               f'this results in the following sigma_t schedule for ddim sampler {sigmas}')
     return sigmas, alphas, alphas_prev
 
-def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
-    if ddim_discr_method == 'uniform':
-        c = num_ddpm_timesteps // num_ddim_timesteps
-        ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
-    elif ddim_discr_method == 'quad':
-        ddim_timesteps = ((np.linspace(0, np.sqrt(num_ddpm_timesteps * .8), num_ddim_timesteps)) ** 2).astype(int)
-    else:
-        raise NotImplementedError(f'There is no ddim discretization method called "{ddim_discr_method}"')
+def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
+    c = num_ddpm_timesteps // num_ddim_timesteps
+    ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
 
     # assert ddim_timesteps.shape[0] == num_ddim_timesteps
     # add one to get the final alpha values right (the ones from first scale to data during sampling)
@@ -89,21 +66,7 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     return embedding
 
 
-# def zero_module(module):
-#     """
-#     Zero out the parameters of a module and return it.
-#     """
-#     for p in module.parameters():
-#         p.detach().zero_()
-#     return module
-
-
 def normalization(channels):
-    """
-    Make a standard normalization layer.
-    :param channels: number of input channels.
-    :return: an nn.Module for normalization.
-    """
     return nn.GroupNorm(32, channels)
 
 
@@ -131,18 +94,3 @@ def linear(*args, **kwargs):
     Create a linear module.
     """
     return nn.Linear(*args, **kwargs)
-
-
-def avg_pool_nd(dims: int, *args, **kwargs):
-    """
-    Create a 1D, 2D, or 3D average pooling module.
-    """
-    if dims == 1:
-        return nn.AvgPool1d(*args, **kwargs)
-    elif dims == 2:
-        return nn.AvgPool2d(*args, **kwargs)
-    elif dims == 3:
-        return nn.AvgPool3d(*args, **kwargs)
-    raise ValueError(f"unsupported dimensions: {dims}")
-
-

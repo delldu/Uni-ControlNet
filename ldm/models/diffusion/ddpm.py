@@ -19,66 +19,36 @@ from models.local_adapter import LocalControlUNetModel
 
 import pdb
 
-class DiffusionWrapper(nn.Module):
-    def __init__(self, version="1.5"):
-        super().__init__()
-        self.diffusion_model = LocalControlUNetModel(version=version)
-
-
 class DDPM(nn.Module):
     # classic DDPM with Gaussian diffusion, in image space
-    def __init__(self,
-                 version="v1.5",
-                 timesteps=1000,
-                 beta_schedule="linear",
-                 linear_start=1e-4,
-                 linear_end=2e-2,
-                 parameterization="eps",  # all assuming fixed variance schedules
-                 ):
+    def __init__(self, version="v1.5", timesteps=1000):
         super().__init__()
+        self.diffusion_model = LocalControlUNetModel(version=version)
+        count_params(self.diffusion_model, verbose=True)
+        self.register_schedule(timesteps=timesteps)
 
-        assert parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
-        self.parameterization = parameterization
-        self.model = DiffusionWrapper(version=version) 
-        count_params(self.model, verbose=True)
-
-        self.register_schedule(beta_schedule=beta_schedule, timesteps=timesteps,
-                               linear_start=1e-4, linear_end=2e-2)
-
-    def register_schedule(self, beta_schedule="linear", timesteps=1000,
-                          linear_start=1e-4, linear_end=2e-2):
-        betas = make_beta_schedule(beta_schedule, timesteps, linear_start=1e-4, linear_end=2e-2)
+    def register_schedule(self, timesteps=1000):
+        betas = make_beta_schedule(timesteps, linear_start=1e-4, linear_end=2e-2)
         alphas = 1. - betas
         alphas_cumprod = np.cumprod(alphas, axis=0)
-        alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])
 
         timesteps, = betas.shape
         self.num_timesteps = int(timesteps)
-        self.linear_start = 1e-4
-        self.linear_end = 2e-2
         assert alphas_cumprod.shape[0] == self.num_timesteps, 'alphas have to be defined for each timestep'
 
         to_torch = partial(torch.tensor, dtype=torch.float32)
 
         self.register_buffer('betas', to_torch(betas))
         self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
-        self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
 
 
 class LatentDiffusion(DDPM):
-    """main class"""
-
-    def __init__(self,
-                version="v1.5",
-                scale_factor=0.18215,
-                ):
-
+    def __init__(self, version="v1.5", scale_factor=0.18215):
         super().__init__(version=version)
         self.version = version
         self.scale_factor = scale_factor
         self.instantiate_first_stage()
         self.instantiate_cond_stage()
-
 
     def instantiate_first_stage(self):
         model = AutoencoderKL(version=self.version)
@@ -93,16 +63,13 @@ class LatentDiffusion(DDPM):
             param.requires_grad = False
 
     def get_learned_conditioning(self, c):
-        # pdb.set_trace()
         c = self.cond_stage_model.encode(c)
         return c
 
-    # @torch.no_grad()
     def decode_first_stage(self, z):
         # ==> come here
         z = 1. / self.scale_factor * z
         return self.first_stage_model.decode(z)
 
-    # @torch.no_grad()
     # def encode_first_stage(self, x):
     #     return self.first_stage_model.encode(x)

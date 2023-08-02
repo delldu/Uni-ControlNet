@@ -41,10 +41,8 @@ class UniControlNet(LatentDiffusion):
         # x_noisy.size() -- [1, 4, 80, 64]
         # t -- tensor([801], device='cuda:0')
         # cond.keys() -- ['local_control', 'c_crossattn', 'global_control']
-        # (Pdb) pp args -- ()
-        # (Pdb) pp kwargs -- {}
+        # (Pdb) args -- (), kwargs -- {}
 
-        diffusion_model = self.model.diffusion_model
         cond_txt = torch.cat(cond['c_crossattn'], 1) # size() -- [1, 77, 768]
 
         # cond['local_control'][0].size() -- [1, 21, 640, 512]
@@ -54,34 +52,27 @@ class UniControlNet(LatentDiffusion):
         global_control = self.global_adapter(cond['global_control'][0]) # global_control.size() -- [1, 4, 768]
         cond_txt = torch.cat([cond_txt, global_strength * global_control], dim=1)
 
-
         assert cond['local_control'][0] != None
-        local_control = torch.cat(cond['local_control'], 1)
-        # torch.cat(cond['local_control'], 1).size() -- [1, 21, 640, 512]
+        local_control = torch.cat(cond['local_control'], 1) # size() -- [1, 21, 640, 512]
 
         local_control = self.local_adapter(x=x_noisy, timesteps=t, context=cond_txt, local_conditions=local_control)
         local_control = [c * scale for c, scale in zip(local_control, self.local_control_scales)]
         
-        eps = diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, local_control=local_control)
+        eps = self.diffusion_model(x=x_noisy, timesteps=t, context=cond_txt, local_control=local_control)
         # eps.size() -- [1, 4, 80, 64]
         return eps
 
-    @torch.no_grad()
-    def get_unconditional_conditioning(self, N):
-        return self.get_learned_conditioning([""] * N)
-
-
     def low_vram_shift(self, is_diffusing):
         if is_diffusing:
-            # sample ...
-            self.model = self.model.cuda()
+            # sample ... global_adapter, local_adapter, diffusion_mode
+            self.diffusion_model = self.diffusion_model.cuda()
             self.local_adapter = self.local_adapter.cuda()
             self.global_adapter = self.global_adapter.cuda()
             self.first_stage_model = self.first_stage_model.cpu()
             self.cond_stage_model = self.cond_stage_model.cpu()
         else:
             # clip ... , image.decode
-            self.model = self.model.cpu()
+            self.diffusion_model = self.diffusion_model.cpu()
             self.local_adapter = self.local_adapter.cpu()
             self.global_adapter = self.global_adapter.cpu()
             self.first_stage_model = self.first_stage_model.cuda() # image.decode

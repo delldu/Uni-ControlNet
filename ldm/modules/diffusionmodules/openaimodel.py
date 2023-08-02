@@ -1,7 +1,5 @@
 from abc import abstractmethod
-# import math
 
-# import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,8 +7,6 @@ import torch.nn.functional as F
 from ldm.modules.diffusionmodules.util import (
     conv_nd,
     linear,
-    avg_pool_nd,
-    # zero_module,
     normalization,
     timestep_embedding,
 )
@@ -28,7 +24,7 @@ class TimestepBlock(nn.Module):
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, x, emb, context=None):
         for layer in self:
-            if isinstance(layer, TimestepBlock):
+            if isinstance(layer, TimestepBlock): # xxxx8888
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
                 x = layer(x, context)
