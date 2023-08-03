@@ -14,22 +14,27 @@ import pdb
 
 
 class TimestepEmbedSequential(nn.Sequential):
-    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None, local_features: Optional[torch.Tensor]=None):
+    '''
+    0) ResBlock
+    1) ResBlock, SpatialTransformer
+    2) ResBlock, Upsample
+    3) ResBlock, SpatialTransformer, Upsample
+    4) ResBlock, SpatialTransformer, ResBlock
+    '''
+    def forward(self, x, emb, context):
         # for layer in self:
-        #     if isinstance(layer, TimestepBlock): # xxxx8888
+        #     if isinstance(layer, ResBlock):
         #         x = layer(x, emb, context)
         #     elif isinstance(layer, SpatialTransformer):
         #         x = layer(x, context, context)
         #     else:
         #         x = layer(x)
         for layer in self:
-            x = layer(x, emb, context, local_features)
+            x = layer(x, emb, context)
         return x
 
-# xxxx8888
 class NormalEmbededSequential(nn.Sequential):
-    # def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
-    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None, local_features: Optional[torch.Tensor]=None):
+    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None):
         for layer in self:
             x = layer(x)
         return x
@@ -43,8 +48,8 @@ class Upsample(nn.Module):
         self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
         # torch.jit.script(self) ==> OK
 
-    # for TimestepEmbedSequential
-    def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
+    # Extended for TimestepEmbedSequential
+    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None):
         assert x.shape[1] == self.channels
         x = F.interpolate(x, scale_factor=2.0, mode="nearest")
         x = self.conv(x)
@@ -92,8 +97,8 @@ class ResBlock(nn.Module):
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
         # torch.jit.script(self) ==> OK
 
-    # for TimestepEmbedSequential
-    def forward(self, x, emb, context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
+    # Extended for TimestepEmbedSequential/LocalTimestepEmbedSequential
+    def forward(self, x, emb, context: Optional[torch.Tensor]=None, local_features: Optional[torch.Tensor]=None):
         h = self.in_layers(x)
         emb_out = self.emb_layers(emb)
         while len(emb_out.shape) < len(h.shape):
@@ -166,14 +171,12 @@ class LocalControlUNetModel(nn.Module):
                     dim_head = ch // num_heads
                     layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
+
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
-                out_ch = ch
-                self.input_blocks.append(NormalEmbededSequential(Downsample(ch, dims=dims, out_channels=out_ch)))
-                ch = out_ch
+                self.input_blocks.append(NormalEmbededSequential(Downsample(ch, dims=dims, out_channels=ch)))
                 input_block_chans.append(ch)
                 ds *= 2
-            # ==> layers -- [ResBlock, SpatialTransformer, ...]
         dim_head = ch // num_heads
         self.middle_block = TimestepEmbedSequential(
             ResBlock(ch, time_embed_dim, dropout, dims=dims),
@@ -193,10 +196,8 @@ class LocalControlUNetModel(nn.Module):
                     dim_head = ch // num_heads
                     layers.append(SpatialTransformer(ch, num_heads, dim_head, depth=transformer_depth, context_dim=context_dim))
                 if level and i == self.num_res_blocks[level]:
-                    out_ch = ch
-                    layers.append(Upsample(ch, dims=dims, out_channels=out_ch))
+                    layers.append(Upsample(ch, dims=dims, out_channels=ch))
                     ds //= 2
-
                 self.output_blocks.append(TimestepEmbedSequential(*layers))
 
         self.out = nn.Sequential(
@@ -204,14 +205,13 @@ class LocalControlUNetModel(nn.Module):
             nn.SiLU(),
             conv_nd(dims, model_channels, out_channels, 3, padding=1),
         )
-        # torch.jit.script(self) ==> error, comes from xformers, xxxx8888, without it comes from hack.py 32
+        # torch.jit.script(self) ==> OK
         # torch.jit.script(self.out) ==> OK
-        # torch.jit.script(self.output_blocks) ==> Error. xxxx8888
-        # torch.jit.script(self.middle_block) ==> Error, xxxx8888
-        # torch.jit.script(self.input_blocks) ==> Error, xxxx8888
+        # torch.jit.script(self.output_blocks) ==> OK
+        # torch.jit.script(self.middle_block) ==> OK
+        # torch.jit.script(self.input_blocks) ==> OK
         # torch.jit.script(self.time_embed) ==> OK
-        pdb.set_trace()
-
+        # torch.jit.script(timestep_embedding) ==> OK
 
     def forward(self, x, timesteps, context, local_control: List[torch.Tensor]): # xxxx8888
         # x.size() -- [1, 4, 80, 64], sample noise ?
@@ -221,15 +221,17 @@ class LocalControlUNetModel(nn.Module):
         # local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]
 
         hs = []
-        with torch.no_grad():
-            t_emb = timestep_embedding(timesteps, self.model_channels) # self.model_channels -- 320
-            emb = self.time_embed(t_emb)
-            h = x
-            for module in self.input_blocks:
-                h = module(h, emb, context)
-                hs.append(h)
-            h = self.middle_block(h, emb, context)
 
+        t_emb = timestep_embedding(timesteps, self.model_channels) # self.model_channels -- 320
+        emb = self.time_embed(t_emb)
+
+        h = x
+        # xxxx1111
+        for module in self.input_blocks:
+            h = module(h, emb, context)
+            hs.append(h)
+
+        h = self.middle_block(h, emb, context)
         h += local_control.pop()
 
         for module in self.output_blocks:

@@ -44,7 +44,7 @@ def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose:bool=Tru
         print(f'Selected timesteps for ddim sampler: {steps_out}')
     return steps_out
 
-def timestep_embedding(timesteps, dim, max_period:int=10000):
+def timestep_embedding(timesteps, dim: int, max_period:int=10000):
     """
     Create sinusoidal timestep embeddings.
     :param timesteps: a 1-D Tensor of N indices, one per batch element.

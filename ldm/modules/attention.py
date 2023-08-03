@@ -2,7 +2,6 @@ from inspect import isfunction
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from einops import rearrange
 from einops.layers.torch import Rearrange
 from typing import Optional, Any
 import pdb
@@ -197,13 +196,6 @@ class BasicTransformerBlock(nn.Module):
 
 
 class SpatialTransformer(nn.Module):
-    """
-    Transformer block for image-like data.
-    First, project the input (aka embedding)
-    and reshape to b, t, d.
-    Then apply standard transformer action.
-    Finally, reshape to image
-    """
     def __init__(self, in_channels, n_heads, d_head, depth=1, dropout=0., context_dim=None):
         super().__init__()
         inner_dim = n_heads * d_head
@@ -219,8 +211,8 @@ class SpatialTransformer(nn.Module):
         self.BxHxWxC_BxCxHxW = Rearrange('b h w c -> b c h w')
         # torch.jit.script(self) ==> OK
 
-    # for TimestepEmbedSequential
-    def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
+    # Extended for TimestepEmbedSequential/LocalTimestepEmbedSequential
+    def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]=None):
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
