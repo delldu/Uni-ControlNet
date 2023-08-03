@@ -117,7 +117,7 @@ class FeatureExtractor(nn.Module):
         # torch.jit.script(self.pre_extractor) ==> OK
         # torch.jit.script(self.extractors) ==> OK
         # torch.jit.script(self.zero_convs) ==> OK
-        # torch.jit.script(self) ==> Errors, *** RuntimeError: Unsupported value kind: Tensor, xxxx8888
+        # torch.jit.script(self) ==> OK
 
     def forward(self, local_conditions):
         # local_conditions.size() -- [1, 21, 640, 512]
@@ -237,9 +237,10 @@ class LocalAdapter(nn.Module):
         # torch.jit.script(self.feature_extractor) ==> Error, xxxx8888, Unsupported value kind: Tensor
         # torch.jit.script(self.input_blocks) ==> OK
         # torch.jit.script(self.zero_convs) ==> OK
-        # torch.jit.script(self.middle_block) ==> Error !!!, xxxx8888, hack.py", line 32
         # torch.jit.script(self.middle_block_out) ==> OK
-        # pdb.set_trace()
+
+        # torch.jit.script(self.middle_block) ==> Error !!!, xxxx8888, hack.py", line 32
+        pdb.set_trace()
 
     def forward(self, x, timesteps, context, local_conditions):
         # x.size() -- [1, 4, 80, 64

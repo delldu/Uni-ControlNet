@@ -33,7 +33,7 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta: float, verbose
               f'this results in the following sigma_t schedule for ddim sampler {sigmas}')
     return sigmas, alphas, alphas_prev
 
-def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
+def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose:bool=True):
     c = num_ddpm_timesteps // num_ddim_timesteps
     ddim_timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
 
@@ -44,8 +44,7 @@ def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
         print(f'Selected timesteps for ddim sampler: {steps_out}')
     return steps_out
 
-# @torch.jit.script ==> errors, xxxx8888
-def timestep_embedding(timesteps, dim, max_period=10000):
+def timestep_embedding(timesteps, dim, max_period:int=10000):
     """
     Create sinusoidal timestep embeddings.
     :param timesteps: a 1-D Tensor of N indices, one per batch element.

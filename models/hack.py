@@ -30,7 +30,7 @@ def _hacked_sliced_attentin_forward(self, x, context=None, mask=None):
     v = self.to_v(context)
     del context, x
 
-    q, k, v = map(lambda t: einops.rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v)) # xxxx8888
+    q, k, v = map(lambda t: einops.rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
 
     limit = k.shape[0]
     att_step = 1

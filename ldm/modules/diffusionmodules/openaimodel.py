@@ -210,7 +210,7 @@ class LocalControlUNetModel(nn.Module):
         # torch.jit.script(self.middle_block) ==> Error, xxxx8888
         # torch.jit.script(self.input_blocks) ==> Error, xxxx8888
         # torch.jit.script(self.time_embed) ==> OK
-        # pdb.set_trace()
+        pdb.set_trace()
 
 
     def forward(self, x, timesteps, context, local_control: List[torch.Tensor]): # xxxx8888

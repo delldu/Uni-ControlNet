@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
-from typing import Optional, Any
-
 from ldm.modules.attention import MemoryEfficientCrossAttention
+from typing import Optional, Any
+import pdb
 
 try:
     XFORMERS_IS_AVAILBLE = False
@@ -52,7 +52,7 @@ class ResnetBlock(nn.Module):
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
         if self.in_channels != self.out_channels:
             self.nin_shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        else: # support torch.jit.script
+        else: # To support torch.jit.script
             self.nin_shortcut = nn.Identity()
 
     def forward(self, x):
@@ -171,23 +171,22 @@ class MemoryEfficientAttnBlock(nn.Module):
         return x+out
 
 
-# class MemoryEfficientCrossAttentionWrapper(MemoryEfficientCrossAttention):
-#     def __init__(self):
-#         suprt(MemoryEfficientCrossAttentionWrapper, self).__init__()
-#         self.BxCxHxW_BxHWxC = Rearrange('b c h w -> b (h w) c')
-#         self.BxHxWxC_BxCxHxW = Rearrange('b h w c -> b c h w')
+class MemoryEfficientCrossAttentionWrapper(MemoryEfficientCrossAttention):
+    def __init__(self):
+        suprt(MemoryEfficientCrossAttentionWrapper, self).__init__()
+        self.BxCxHxW_BxHWxC = Rearrange('b c h w -> b (h w) c')
+        self.BxHxWxC_BxCxHxW = Rearrange('b h w c -> b c h w')
 
-#     def forward(self, x, context=None, mask=None):
-#         b, c, h, w = x.shape
-#         # x = rearrange(x, 'b c h w -> b (h w) c')
-#         x = self.BxCxHxW_BxHWxC(x)
-#         out = super().forward(x, context=context, mask=mask)
-#         # out = rearrange(out, 'b (h w) c -> b c h w', h=h, w=w, c=c)
-#         out = self.BxHxWxC_BxCxHxW(out.reshape(b, h, w, c))
-#         return x + out
+    def forward(self, x, context=None, mask=None):
+        b, c, h, w = x.shape
+        # x = rearrange(x, 'b c h w -> b (h w) c')
+        x = self.BxCxHxW_BxHWxC(x)
+        out = super().forward(x, context=context, mask=mask)
+        # out = rearrange(out, 'b (h w) c -> b c h w', h=h, w=w, c=c)
+        out = self.BxHxWxC_BxCxHxW(out.reshape(b, h, w, c))
+        return x + out
 
 
-# xxxx8888
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     assert attn_type in ["vanilla", "vanilla-xformers", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
     if XFORMERS_IS_AVAILBLE and attn_type == "vanilla":
@@ -199,9 +198,9 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     elif attn_type == "vanilla-xformers":
         print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
         return MemoryEfficientAttnBlock(in_channels)
-    # elif type == "memory-efficient-cross-attn":
-    #     attn_kwargs["query_dim"] = in_channels
-    #     return MemoryEfficientCrossAttentionWrapper(**attn_kwargs)
+    elif type == "memory-efficient-cross-attn":
+        attn_kwargs["query_dim"] = in_channels
+        return MemoryEfficientCrossAttentionWrapper(**attn_kwargs)
     elif attn_type == "none":
         return nn.Identity(in_channels)
     else:
@@ -241,19 +240,26 @@ class Decoder(nn.Module):
             up.block = block
             if i_level != 0:
                 up.upsample = Upsample(block_in)
-            else:
+            else: # Support torch.jit.script 
                 up.upsample = nn.Identity()
+
             self.up.insert(0, up) # prepend to get consistent order
 
         # end
         self.norm_out = Normalize(block_in)
         self.conv_out = nn.Conv2d(block_in, out_ch, kernel_size=3, stride=1, padding=1)
+        # torch.jit.script(self) ==> OK
 
+    def up_layer(self, i:int, h):
+        '''Ugly code for torch.jit.script, Because it does not support reversed(), oh oh oh !!!'''
+        for i_level, layer in enumerate(self.up):
+            if i_level == i:
+                for i_block, block in enumerate(layer.block):
+                    h = block(h)
+                h = layer.upsample(h)
+        return h
 
     def forward(self, z):
-        #assert z.shape[1:] == self.z_shape[1:]
-        # self.last_z_shape = z.shape
-
         # z to block_in
         h = self.conv_in(z)
 
@@ -263,14 +269,15 @@ class Decoder(nn.Module):
         h = self.mid.block_2(h)
 
         # upsampling
-        for i_level in reversed(range(self.num_resolutions)): # xxxx8888
-            for i_block in range(self.num_res_blocks+1):
-                # h = self.up[i_level].block[i_block](h, temb)
-                h = self.up[i_level].block[i_block](h)
-            if i_level != 0:
-                h = self.up[i_level].upsample(h)
-        # end
+        # for i_level in reversed(range(self.num_resolutions))
+        #     for i_block in range(self.num_res_blocks+1):
+        #         h = self.up[i_level].block[i_block](h)
+        #     if i_level != 0:
+        #         h = self.up[i_level].upsample(h)
+        for i in range(self.num_resolutions):
+            h = self.up_layer(self.num_resolutions - i - 1, h)
 
+        # end
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
