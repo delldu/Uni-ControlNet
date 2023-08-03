@@ -213,7 +213,7 @@ class LocalControlUNetModel(nn.Module):
         # torch.jit.script(self.time_embed) ==> OK
         # torch.jit.script(timestep_embedding) ==> OK
 
-    def forward(self, x, timesteps, context, local_control: List[torch.Tensor]): # xxxx8888
+    def forward(self, x, timesteps, context, local_control: List[torch.Tensor]):
         # x.size() -- [1, 4, 80, 64], sample noise ?
         # timesteps -- tensor([801], device='cuda:0'), torch.int64
         # context.size() -- [1, 81, 768], global_control, comes from CLIP("ViT-L-14")

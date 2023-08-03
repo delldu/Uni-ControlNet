@@ -41,13 +41,12 @@ apply_canny = CannyDetector()
 model = create_model("v1.5").cpu()
 # model -- models.uni_controlnet.UniControlNet
 
-## model.diffusion_model -- models.local_adapter.LocalControlUNetModel
-## model.local_adapter -- models.local_adapter.LocalAdapter
+# model.diffusion_model -- models.local_adapter.LocalControlUNetModel
+# model.local_adapter -- models.local_adapter.LocalAdapter
 # model.global_adapter -- models.global_adapter.GlobalAdapter
 
-## model.first_stage_model -- ldm.models.autoencoder.AutoencoderKL
+# model.first_stage_model -- ldm.models.autoencoder.AutoencoderKL
 ## model.cond_stage_model -- ldm.modules.encoders.modules.FrozenCLIPEmbedder
-# pdb.set_trace()
 
 model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
 model = model.cuda()
