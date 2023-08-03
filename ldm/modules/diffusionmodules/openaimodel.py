@@ -9,11 +9,12 @@ from ldm.modules.diffusionmodules.util import (
     timestep_embedding,
 )
 from ldm.modules.attention import SpatialTransformer
+from typing import List, Optional
 import pdb
 
 
 class TimestepEmbedSequential(nn.Sequential):
-    def forward(self, x, emb=None, context=None, local_features=None):
+    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None, local_features: Optional[torch.Tensor]=None):
         # for layer in self:
         #     if isinstance(layer, TimestepBlock): # xxxx8888
         #         x = layer(x, emb, context)
@@ -27,7 +28,8 @@ class TimestepEmbedSequential(nn.Sequential):
 
 # xxxx8888
 class NormalEmbededSequential(nn.Sequential):
-    def forward(self, x, emb=None, context=None, local_features=None):
+    # def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
+    def forward(self, x, emb: Optional[torch.Tensor]=None, context: Optional[torch.Tensor]=None, local_features: Optional[torch.Tensor]=None):
         for layer in self:
             x = layer(x)
         return x
@@ -41,7 +43,8 @@ class Upsample(nn.Module):
         self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
         # torch.jit.script(self) ==> OK
 
-    def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
+    # for TimestepEmbedSequential
+    def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
         assert x.shape[1] == self.channels
         x = F.interpolate(x, scale_factor=2.0, mode="nearest")
         x = self.conv(x)
@@ -89,7 +92,8 @@ class ResBlock(nn.Module):
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
         # torch.jit.script(self) ==> OK
 
-    def forward(self, x, emb, context=None, local_features=None): # for TimestepEmbedSequential
+    # for TimestepEmbedSequential
+    def forward(self, x, emb, context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
         h = self.in_layers(x)
         emb_out = self.emb_layers(emb)
         while len(emb_out.shape) < len(h.shape):
@@ -201,10 +205,15 @@ class LocalControlUNetModel(nn.Module):
             conv_nd(dims, model_channels, out_channels, 3, padding=1),
         )
         # torch.jit.script(self) ==> error, comes from xformers, xxxx8888, without it comes from hack.py 32
+        # torch.jit.script(self.out) ==> OK
+        # torch.jit.script(self.output_blocks) ==> Error. xxxx8888
+        # torch.jit.script(self.middle_block) ==> Error, xxxx8888
+        # torch.jit.script(self.input_blocks) ==> Error, xxxx8888
+        # torch.jit.script(self.time_embed) ==> OK
         # pdb.set_trace()
 
 
-    def forward(self, x, timesteps, context, local_control): # xxxx8888
+    def forward(self, x, timesteps, context, local_control: List[torch.Tensor]): # xxxx8888
         # x.size() -- [1, 4, 80, 64], sample noise ?
         # timesteps -- tensor([801], device='cuda:0'), torch.int64
         # context.size() -- [1, 81, 768], global_control, comes from CLIP("ViT-L-14")

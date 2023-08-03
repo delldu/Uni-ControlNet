@@ -126,9 +126,13 @@ class FeatureExtractor(nn.Module):
         assert len(self.extractors) == len(self.zero_convs)
         
         output_features = []
-        for idx in range(len(self.extractors)):
-            local_features = self.extractors[idx](local_features)
-            output_features.append(self.zero_convs[idx](local_features))
+        # for idx in range(len(self.extractors)):
+        #     local_features = self.extractors[idx](local_features)
+        #     output_features.append(self.zero_convs[idx](local_features))
+        for idx, (e, z) in enumerate(zip(self.extractors, self.zero_convs)):
+            local_features = e(local_features)
+            output_features.append(z(local_features))
+
         return output_features
 
 

@@ -2,7 +2,7 @@ from inspect import isfunction
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
+# from einops import rearrange
 from einops.layers.torch import Rearrange
 from typing import Optional, Any
 import pdb
@@ -80,8 +80,10 @@ class CrossAttention(nn.Module):
         )
         self.BxHxNxD_BxNxHD = Rearrange('b h n d -> b n (h d)')
         self.BxNxHxD_BHxNxD = Rearrange('b n h d -> (b h) n d')
+        # torch.jit.script(self) ==> OK
 
-    def forward(self, x, context=None):
+    def forward(self, x, context: Optional[torch.Tensor]):
+        # context None or size() -- [1, 81, 768]
         h = self.heads
 
         q = self.to_q(x)
@@ -129,7 +131,7 @@ class MemoryEfficientCrossAttention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
         self.attention_op: Optional[Any] = None
 
-    def forward(self, x, context=None):
+    def forward(self, x, context: Optional[torch.Tensor]):
         q = self.to_q(x)
         # context = default(context, x)
         if context is None:
@@ -187,7 +189,7 @@ class BasicTransformerBlock(nn.Module):
         self.norm3 = nn.LayerNorm(dim)
 
 
-    def forward(self, x, context=None):
+    def forward(self, x, context: Optional[torch.Tensor]):
         x = self.attn1(self.norm1(x), context=None) + x
         x = self.attn2(self.norm2(x), context=context) + x
         x = self.ff(self.norm3(x)) + x
@@ -213,19 +215,24 @@ class SpatialTransformer(nn.Module):
                 for d in range(depth)]
         )
         self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
-        # torch.jit.script(self) ==> Error ! comes from xformers, xxxx8888, without xformers _hacked_sliced_attentin_forward
-        # pdb.set_trace()
+        self.BxCxHxW_BxHWxC = Rearrange('b c h w -> b (h w) c')
+        self.BxHxWxC_BxCxHxW = Rearrange('b h w c -> b c h w')
+        # torch.jit.script(self) ==> OK
 
-    def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
+    # for TimestepEmbedSequential
+    def forward(self, x, emb: Optional[torch.Tensor], context: Optional[torch.Tensor], local_features: Optional[torch.Tensor]):
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
         x = self.proj_in(x)
 
-        x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
+        # x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
+        x = self.BxCxHxW_BxHWxC(x).contiguous()
         for i, block in enumerate(self.transformer_blocks):
             x = block(x, context=context)
-        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()
+        # x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()
+        x = self.BxHxWxC_BxCxHxW(x.reshape(b, h, w, c)).contiguous()
+        
         x = self.proj_out(x)
 
         return x + x_in

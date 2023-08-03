@@ -24,6 +24,7 @@ class DDIMSampler(object):
             eta=ddim_eta, verbose=verbose)
         self.ddim_sqrt_one_minus_alphas = np.sqrt(1. - self.ddim_alphas)
 
+        # len(ddim_sigmas) -- 20, ddim_sigmas = [0.0, ..., 0.0]
 
     @torch.no_grad()
     def sample(self,
@@ -61,6 +62,7 @@ class DDIMSampler(object):
                                                     uc_condition=uc_condition,
                                                     global_strength=global_strength
                                                     )
+        # samples.size() -- [1, 4, 80, 64]
         return samples, intermediates
 
     @torch.no_grad()
@@ -114,5 +116,6 @@ class DDIMSampler(object):
         dir_xt = (1. - a_prev - sigma_t**2).sqrt() * e_t
         noise = sigma_t * torch.randn(x.shape, device=device) # * temperature for temperature == 1.0
         x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
+
         return x_prev, pred_x0
 
