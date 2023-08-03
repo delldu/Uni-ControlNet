@@ -92,7 +92,8 @@ class LocalResBlock(nn.Module):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb, context=None, local_conditions=None): # for LocalTimestepEmbedSequential
+    # Extended context for LocalTimestepEmbedSequential
+    def forward(self, x, emb, context=None, local_conditions=None):
         h = self.norm_in(x, local_conditions)
         h = self.in_layers(h)
         
@@ -250,11 +251,9 @@ class LocalAdapter(nn.Module):
                 self.zero_convs.append(LocalNormalEmbededSequential(conv_nd(dims, ch, ch, 1, padding=0)))
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
-                out_ch = ch
                 self.input_blocks.append(
-                    LocalNormalEmbededSequential(Downsample(ch, dims=dims, out_channels=out_ch))
+                    LocalNormalEmbededSequential(Downsample(ch, dims=dims, out_channels=ch))
                 )
-                ch = out_ch
                 input_block_chans.append(ch)
                 self.zero_convs.append(LocalNormalEmbededSequential(conv_nd(dims, ch, ch, 1, padding=0)))
                 ds *= 2
@@ -271,7 +270,6 @@ class LocalAdapter(nn.Module):
         # torch.jit.script(self.input_blocks) ==> OK
         # torch.jit.script(self.zero_convs) ==> OK
         # torch.jit.script(self.middle_block_out) ==> OK
-
         # torch.jit.script(self.middle_block) ==> OK
 
     def forward(self, x, timesteps, context, local_conditions):

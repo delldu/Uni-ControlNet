@@ -226,7 +226,6 @@ class LocalControlUNetModel(nn.Module):
         emb = self.time_embed(t_emb)
 
         h = x
-        # xxxx1111
         for module in self.input_blocks:
             h = module(h, emb, context)
             hs.append(h)
