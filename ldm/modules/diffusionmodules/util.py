@@ -44,7 +44,7 @@ def make_ddim_timesteps(num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
         print(f'Selected timesteps for ddim sampler: {steps_out}')
     return steps_out
 
-
+# @torch.jit.script ==> errors, xxxx8888
 def timestep_embedding(timesteps, dim, max_period=10000):
     """
     Create sinusoidal timestep embeddings.

@@ -8,9 +8,11 @@ from typing import Optional, Any
 import pdb
 
 try:
-    import xformers
-    import xformers.ops
-    XFORMERS_IS_AVAILBLE = True
+    XFORMERS_IS_AVAILBLE = False
+    # xxxx8888, disable xformers !!!
+    # import xformers
+    # import xformers.ops
+    # XFORMERS_IS_AVAILBLE = True
 except:
     XFORMERS_IS_AVAILBLE = False
 
@@ -211,6 +213,8 @@ class SpatialTransformer(nn.Module):
                 for d in range(depth)]
         )
         self.proj_out = nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
+        # torch.jit.script(self) ==> Error ! comes from xformers, xxxx8888, without xformers _hacked_sliced_attentin_forward
+        # pdb.set_trace()
 
     def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
         b, c, h, w = x.shape

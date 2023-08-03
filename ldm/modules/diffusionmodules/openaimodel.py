@@ -25,6 +25,7 @@ class TimestepEmbedSequential(nn.Sequential):
             x = layer(x, emb, context, local_features)
         return x
 
+# xxxx8888
 class NormalEmbededSequential(nn.Sequential):
     def forward(self, x, emb=None, context=None, local_features=None):
         for layer in self:
@@ -38,6 +39,7 @@ class Upsample(nn.Module):
         self.channels = channels
         self.out_channels = out_channels or channels
         self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
+        # torch.jit.script(self) ==> OK
 
     def forward(self, x, emb=None, context=None, local_features=None): # for TimestepEmbedSequential
         assert x.shape[1] == self.channels
@@ -85,7 +87,7 @@ class ResBlock(nn.Module):
             self.skip_connection = nn.Identity()
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
-
+        # torch.jit.script(self) ==> OK
 
     def forward(self, x, emb, context=None, local_features=None): # for TimestepEmbedSequential
         h = self.in_layers(x)
@@ -124,7 +126,7 @@ class LocalControlUNetModel(nn.Module):
         out_channels=4,
         num_res_blocks=2,
         attention_resolutions=[4, 2, 1],
-        dropout=0,
+        dropout=0.0,
         channel_mult=(1, 2, 4, 4),
         dims=2,
         num_heads=8,
@@ -198,10 +200,13 @@ class LocalControlUNetModel(nn.Module):
             nn.SiLU(),
             conv_nd(dims, model_channels, out_channels, 3, padding=1),
         )
+        # torch.jit.script(self) ==> error, comes from xformers, xxxx8888, without it comes from hack.py 32
+        # pdb.set_trace()
 
 
-    def forward(self, x, timesteps=None, context=None, local_control=None):
+    def forward(self, x, timesteps, context, local_control): # xxxx8888
         # x.size() -- [1, 4, 80, 64], sample noise ?
+        # timesteps -- tensor([801], device='cuda:0'), torch.int64
         # context.size() -- [1, 81, 768], global_control, comes from CLIP("ViT-L-14")
         # len(local_control) -- 13
         # local_control[0].size() -- [1, 320, 80, 64], local_control[12].size() -- [1, 1280, 10, 8]

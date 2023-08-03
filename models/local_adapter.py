@@ -114,8 +114,14 @@ class FeatureExtractor(nn.Module):
             conv_nd(dims, inject_channels[2], inject_channels[2], 3, padding=1),
             conv_nd(dims, inject_channels[3], inject_channels[3], 3, padding=1)
         ])
-    
+        # torch.jit.script(self.pre_extractor) ==> OK
+        # torch.jit.script(self.extractors) ==> OK
+        # torch.jit.script(self.zero_convs) ==> OK
+        # torch.jit.script(self) ==> Errors, *** RuntimeError: Unsupported value kind: Tensor, xxxx8888
+
     def forward(self, local_conditions):
+        # local_conditions.size() -- [1, 21, 640, 512]
+
         local_features = self.pre_extractor(local_conditions)
         assert len(self.extractors) == len(self.zero_convs)
         
@@ -155,7 +161,7 @@ class LocalAdapter(nn.Module):
             inject_layers=[1, 4, 7, 10],
             num_res_blocks=2,
             attention_resolutions=[4, 2, 1],
-            dropout=0,
+            dropout=0.0,
             channel_mult=(1, 2, 4, 4),
             dims=2,
             num_heads=8,
@@ -223,6 +229,12 @@ class LocalAdapter(nn.Module):
             ResBlock(ch, time_embed_dim, dropout, dims=dims, ),
         )
         self.middle_block_out = NormalEmbededSequential(conv_nd(dims, ch, ch, 1, padding=0))
+        # torch.jit.script(self) ==> Error, xxxx8888
+        # torch.jit.script(self.feature_extractor) ==> Error, xxxx8888, Unsupported value kind: Tensor
+        # torch.jit.script(self.input_blocks) ==> OK
+        # torch.jit.script(self.zero_convs) ==> OK
+        # torch.jit.script(self.middle_block) ==> Error !!!, xxxx8888, hack.py", line 32
+        # torch.jit.script(self.middle_block_out) ==> OK
         # pdb.set_trace()
 
     def forward(self, x, timesteps, context, local_conditions):
@@ -233,7 +245,7 @@ class LocalAdapter(nn.Module):
 
         t_emb = timestep_embedding(timesteps, self.model_channels)
         emb = self.time_embed(t_emb)
-        local_features = self.feature_extractor(local_conditions)
+        local_features = self.feature_extractor(local_conditions) # xxxx8888
 
         outs = []
         h = x

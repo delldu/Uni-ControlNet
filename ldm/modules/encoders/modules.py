@@ -67,9 +67,10 @@ class FrozenCLIPEmbedder(nn.Module):
         if freeze:
             self.freeze()
         self.layer = layer
-        # pdb.set_trace()
-        # torch.jit.script(self.tokenizer)
-        # torch.jit.script(self.transformer)
+
+        # torch.jit.script(self) ==> Errors, comes from modeling_clip.py, xxxx8888
+        # torch.jit.script(self.tokenizer) ==> Errors
+        # torch.jit.script(self.transformer) ==> Errors
 
 
     def freeze(self):

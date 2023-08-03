@@ -22,6 +22,7 @@ class GlobalAdapter(nn.Module):
         self.ff2 = FeedForward(dim_out1, dim_out=dim_out2, mult=mult2, glu=True, dropout=0.3)
         self.norm1 = nn.LayerNorm(in_dim)
         self.norm2 = nn.LayerNorm(dim_out1)
+        # torch.jit.script(self) ==> OK
 
     def forward(self, x):
         # x.size() -- [1, 768]

@@ -62,6 +62,7 @@ class LatentDiffusion(DDPM):
         for param in self.cond_stage_model.parameters():
             param.requires_grad = False
 
+    # xxxx8888
     def get_learned_conditioning(self, c):
         c = self.cond_stage_model.encode(c)
         return c
