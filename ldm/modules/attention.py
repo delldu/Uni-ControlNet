@@ -7,11 +7,9 @@ from typing import Optional, Any
 import pdb
 
 try:
-    XFORMERS_IS_AVAILBLE = False
-    # xxxx8888, disable xformers !!!
-    # import xformers
-    # import xformers.ops
-    # XFORMERS_IS_AVAILBLE = True
+    import xformers
+    import xformers.ops
+    XFORMERS_IS_AVAILBLE = True
 except:
     XFORMERS_IS_AVAILBLE = False
 

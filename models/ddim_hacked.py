@@ -99,8 +99,10 @@ class DDIMSampler(object):
     def p_sample_ddim(self, x, condition, t, index, uc_guide_scale=7.5, uc_condition=None, global_strength=1.0):
         # here x is noise
         b, *_, device = *x.shape, x.device
-        model_t = self.model.apply_model(x, t, condition, global_strength) # xxxx1111
+
+        model_t = self.model.apply_model(x, t, condition, global_strength)
         model_uncond = self.model.apply_model(x, t, uc_condition, global_strength)
+        
         e_t = model_uncond + uc_guide_scale * (model_t - model_uncond)
 
         # select parameters corresponding to the currently considered timestep

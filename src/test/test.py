@@ -27,8 +27,7 @@ from models.ddim_hacked import DDIMSampler
 from  models.uni_controlnet import UniControlNet
 from ldm.util import count_params
 
-import CLIP
-
+import CLIP # https://github.com/delldu/CLIP.git->cd project -> pip install -e . 
 
 import pdb
 
@@ -127,7 +126,7 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
         else:
             seg_detected_map = np.zeros((H, W, C)).astype(np.uint8)
         if content_image is not None:
-            content_emb = apply_content(content_image) # clip.image_encode(content_image), xxxx1111
+            content_emb = apply_content(content_image) # clip.image_encode(content_image)
         else:
             content_emb = np.zeros((768))
 
@@ -185,6 +184,7 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
             model.low_vram_shift(is_diffusing=False)
 
         x_samples = model.decode_first_stage(samples) # xxxx1111
+
         x_samples = (einops.rearrange(x_samples, 'b c h w -> b h w c') * 127.5 + 127.5).cpu().numpy().clip(0, 255).astype(np.uint8)
         results = [x_samples[i] for i in range(num_samples)]
 
