@@ -27,6 +27,9 @@ from models.ddim_hacked import DDIMSampler
 from  models.uni_controlnet import UniControlNet
 from ldm.util import count_params
 
+import CLIP
+
+
 import pdb
 
 apply_canny = CannyDetector()
@@ -149,18 +152,21 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
         if config.save_memory:
             model.low_vram_shift(is_diffusing=False)
 
-        # get_learned_conditioning -- clip.text_encode(text), xxxx1111
+
+        # ['a diagram, best quality, extremely detailed']
+        cond_tokens = CLIP.tokenize([prompt + ', ' + a_prompt] * num_samples).cuda()
+        uc_cond_tokens = CLIP.tokenize([n_prompt] * num_samples).cuda()
 
         # (Pdb) local_control.size(), local_control.dtype, local_control.min(), local_control.max()
         # ([1, 21, 640, 512], torch.float32, 0., 1.)
         uc_local_control = local_control
         uc_global_control = torch.zeros_like(global_control)
         cond = {"local_control": [local_control], 
-                "c_crossattn": [model.get_learned_conditioning([prompt + ', ' + a_prompt] * num_samples)], 
+                "c_crossattn": [model.get_learned_conditioning(cond_tokens)], 
                 'global_control': [global_control]
             }
         un_cond = {"local_control": [uc_local_control], 
-                "c_crossattn": [model.get_learned_conditioning([n_prompt] * num_samples)], 
+                "c_crossattn": [model.get_learned_conditioning(uc_cond_tokens)], 
                 'global_control': [uc_global_control]
             }
 
