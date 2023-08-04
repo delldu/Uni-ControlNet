@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
-from transformers import CLIPTokenizer, CLIPTextModel
+from transformers import CLIPTokenizer #, CLIPTextModel
 # transformers version: 4.30.2
+
+# from clip import CLIPTextModel
+from ldm.modules.encoders.clip import CLIPTextModel
+
 import pdb
 
 class FrozenCLIPEmbedder(nn.Module):
@@ -31,7 +35,7 @@ class FrozenCLIPEmbedder(nn.Module):
         #         'pad_token': '<|endoftext|>'},
         #     clean_up_tokenization_spaces=True)
 
-        self.transformer = CLIPTextModel.from_pretrained(version)
+        self.transformer = CLIPTextModel() # .from_pretrained(version)
         # (Pdb) self.transformer --
         # CLIPTextModel(
         #   (text_model): CLIPTextTransformer(
@@ -71,8 +75,6 @@ class FrozenCLIPEmbedder(nn.Module):
         # torch.jit.script(self) ==> Errors, comes from modeling_clip.py, xxxx8888
         # torch.jit.script(self.tokenizer) ==> Errors
         # torch.jit.script(self.transformer) ==> Errors
-        # pdb.set_trace()
-
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -96,8 +98,21 @@ class FrozenCLIPEmbedder(nn.Module):
         #          49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407, 49407,
         #          49407, 49407, 49407, 49407, 49407, 49407, 49407]])
 
-        outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
-        z = outputs.last_hidden_state
+        z = self.transformer(input_ids=tokens)
+
+
+        # z = outputs.last_hidden_state
+
+        # import CLIP
+        # clip_model, _ = CLIP.create_model("ViT-L-14")
+        # clip_tokens = CLIP.tokenize(text)
+        # clip_z = clip_model.encode_text(clip_tokens.cuda())
+        # xxx = clip_z - z
+        # xxx.abs().max()
+        # xxx = torch.abs(clip_model.encode_text(tokens) - z).max()
+
+        # z.min(), z.max() -- (-28.0912, 33.0632)
+
         return z # z.size() -- [1, 77, 768]
 
     def encode(self, text):

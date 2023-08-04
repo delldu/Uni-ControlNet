@@ -25,6 +25,7 @@ from annotator.content import ContentDetector
 from models.util import create_model, load_state_dict
 from models.ddim_hacked import DDIMSampler
 from  models.uni_controlnet import UniControlNet
+from ldm.util import count_params
 
 import pdb
 
@@ -49,6 +50,13 @@ model = create_model("v1.5").cpu()
 ## model.cond_stage_model -- ldm.modules.encoders.modules.FrozenCLIPEmbedder
 
 model.load_state_dict(load_state_dict('./ckpt/uni.ckpt', location='cpu'))
+
+# count_params(model.diffusion_model, verbose=True) # 859.52 M
+# count_params(model.local_adapter, verbose=True) # 411.90 M
+# count_params(model.global_adapter, verbose=True) # 47.21 M
+# count_params(model.first_stage_model, verbose=True) # 49.49 M
+# count_params(model.cond_stage_model, verbose=True) # 123.06 M
+
 model = model.cuda()
 ddim_sampler = DDIMSampler(model)
 
@@ -142,6 +150,9 @@ def process(canny_image, mlsd_image, hed_image, sketch_image, openpose_image, mi
             model.low_vram_shift(is_diffusing=False)
 
         # get_learned_conditioning -- clip.text_encode(text), xxxx1111
+
+        # (Pdb) local_control.size(), local_control.dtype, local_control.min(), local_control.max()
+        # ([1, 21, 640, 512], torch.float32, 0., 1.)
         uc_local_control = local_control
         uc_global_control = torch.zeros_like(global_control)
         cond = {"local_control": [local_control], 
